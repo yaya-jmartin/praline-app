@@ -28,6 +28,8 @@ class PairScreen(a: MainActivity) : Screen(a) {
         col.addView(top)
         col.addView(a.script("Invite a chef", 48f), lp(MATCH, WRAP).m(l = -a.dp(4)))
 
+        // pairing only happens on the home Wi-Fi
+        if (mode != 3 && !HomeWifi.here(a)) { homeFirst(col); return sv }
         when (mode) {
             0 -> choose(col)
             1 -> showCode(col)
@@ -36,6 +38,20 @@ class PairScreen(a: MainActivity) : Screen(a) {
             else -> paired(col)
         }
         return sv
+    }
+
+    /** Before pairing: this Wi-Fi has to be the saved home one. */
+    private fun homeFirst(col: android.widget.LinearLayout) {
+        val home = HomeWifi.saved(a)
+        val card = a.card(C.TANG, 14, 14)
+        card.addView(a.script("Home dungeon access", 30f))
+        card.addView(a.note(if (home.isEmpty()) "Praliné pairs and syncs only on your home Wi-Fi. Are you home? Save this Wi-Fi as home first."
+            else "You're not on your home Wi-Fi (“$home”), so the phones won't pair or sync here.", 12.5f), lp(MATCH, WRAP).m(t = a.dp(2)))
+        val b = a.chip(if (home.isEmpty()) "Use this Wi-Fi as home" else "Make this Wi-Fi home instead", true, C.TANG, "wifi", 13f)
+        b.contentDescription = "set home wifi"
+        b.onClick { HomeWifi.ask(a) { rebuild() } }
+        card.addView(b, lp(WRAP, WRAP).m(t = a.dp(10)))
+        col.addView(card, lp(MATCH, WRAP).m(t = a.dp(6)))
     }
 
     private fun choose(col: android.widget.LinearLayout) {

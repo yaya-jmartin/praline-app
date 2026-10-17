@@ -36,7 +36,7 @@ class PhotoProvider : ContentProvider() {
         c.addRow(arrayOf<Any>(f.name, f.length()))
         return c
     }
-    override fun getType(uri: Uri) = if ((uri.lastPathSegment ?: "").endsWith(".mp4")) "video/mp4" else "image/jpeg"
+    override fun getType(uri: Uri): String { val n = uri.lastPathSegment ?: ""; return if (n.endsWith(".mp4")) "video/mp4" else if (n.endsWith(RecipeFiles.EXT)) "application/octet-stream" else "image/jpeg" }
     override fun insert(uri: Uri, v: ContentValues?): Uri? = null
     override fun delete(uri: Uri, s: String?, a: Array<String>?) = 0
     override fun update(uri: Uri, v: ContentValues?, s: String?, a: Array<String>?) = 0

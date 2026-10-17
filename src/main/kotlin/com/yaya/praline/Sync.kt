@@ -29,6 +29,7 @@ object Sync {
     const val TYPE = "_praline._tcp."
     /** Praliné 1.1 speaks version 2: shared-recipe changes, and photos and clips sent as raw bytes. */
     const val VERSION = 2
+    const val NOT_HOME = "Not on your home Wi-Fi, so nothing was sent."
     const val TOO_OLD = "Update Praliné on the other phone to 1.1 so the two can sync again."
     /** Things to tell the chef after a sync ("Yaya accepted your change to Tatin"). */
     val news: MutableList<String> = ArrayList()
@@ -187,7 +188,8 @@ object Sync {
             override fun run() {
                 val ss = try { ServerSocket(PORT) } catch (e: Exception) { try { ServerSocket(0) } catch (x: Exception) { return } }
                 server = ss; port = ss.localPort
-                register(app)
+                // only announced on the home Wi-Fi
+                if (HomeWifi.here(app)) register(app)
                 while (!ss.isClosed) {
                     try {
                         val s = ss.accept()
@@ -211,6 +213,7 @@ object Sync {
             s.soTimeout = 20_000
             val inp = DataInputStream(s.getInputStream().buffered()); val out = DataOutputStream(s.getOutputStream().buffered())
             val hello = recv(inp)
+            if (!HomeWifi.here(c)) { send(out, JSONObject().put("error", NOT_HOME)); return }
             val key = hello.optString("key")
             synchronized(lock) {
                 val ok = key.isNotEmpty() && (key == Store.pairKey || key == pendingKey)
@@ -238,6 +241,7 @@ object Sync {
     /** Syncs with the other phone at [host]:[port]. Calls [done] on the main thread with null or an error. */
     fun syncWith(c: Context, host: String, port: Int, key: String, done: (String?) -> Unit) {
         val app = c.applicationContext
+        if (!HomeWifi.here(app)) { main.post(object : Runnable { override fun run() { done(NOT_HOME) } }); return }
         Thread(object : Runnable {
             override fun run() {
                 val err = try { client(app, host, port, key); null } catch (e: Exception) { e.message ?: "couldn't reach the other phone" }
@@ -306,6 +310,7 @@ object Sync {
     fun autoSync(c: Context, done: (String?) -> Unit) {
         if (Store.pairKey.isEmpty()) return
         val peer = Store.peer ?: return
+        if (!HomeWifi.here(c)) return
         val app = c.applicationContext
         var fired = false
         fun go(host: String, port: Int) { if (fired) return; fired = true; stopDiscovery(app); syncWith(app, host, port, Store.pairKey, done) }

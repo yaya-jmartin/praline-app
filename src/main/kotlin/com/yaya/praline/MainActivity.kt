@@ -188,6 +188,7 @@ class MainActivity : Activity() {
         }
         Sync.startServer(this)
         showLastCrash()
+        openRecipeFile(intent)
     }
 
     override fun onResume() {
@@ -199,6 +200,28 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() { super.onPause(); handler.removeCallbacks(ticker); Resume.save(this) }
+
+    override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); openRecipeFile(i) }
+
+    /** A recipe file opened from a chat app or Files ([RecipeFiles]). */
+    fun openRecipeFile(i: Intent?) {
+        if (i == null) return
+        @Suppress("DEPRECATION")
+        val uri: android.net.Uri? = when (i.action) {
+            Intent.ACTION_VIEW -> i.data
+            Intent.ACTION_SEND -> i.getParcelableExtra(Intent.EXTRA_STREAM) as? android.net.Uri
+            else -> null
+        }
+        if (uri == null) return
+        i.action = null
+        RecipeFiles.offer(this, uri)
+    }
+
+    /** Picks a recipe file from the phone (Settings). */
+    fun pickRecipeFile() {
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+        try { startActivityForResult(i, REQ_RECIPE_FILE) } catch (e: Exception) { toast("No file picker found") }
+    }
 
     override fun onTrimMemory(level: Int) { super.onTrimMemory(level); Photos.trim(level) }
 
@@ -594,6 +617,7 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_RECIPE_FILE) { val u = data?.data; if (resultCode == Activity.RESULT_OK && u != null) RecipeFiles.offer(this, u); return }
         if (requestCode == REQ_VIDEO || requestCode == REQ_VIDEO_GALLERY) {
             val vcb = videoCallback ?: return
             videoCallback = null
@@ -705,6 +729,7 @@ class MainActivity : Activity() {
         const val REQ_PERM = 20
         const val REQ_VIDEO = 13
         const val REQ_VIDEO_GALLERY = 14
+        const val REQ_RECIPE_FILE = 15
     }
 }
 

@@ -60,6 +60,10 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
         val back = a.roundIcon("back"); back.onClick { a.pop() }
         bar.addView(back)
         bar.addView(a.space(), lp(0, 1, 1f))
+        val send = a.roundIcon("scroll", 42, C.CARD, 18, 10f)
+        send.contentDescription = "send recipe"
+        send.onClick { sendRecipe() }
+        bar.addView(send, lp(a.dp(42), a.dp(42)).m(r = a.dp(10)))
         val edit = a.roundIcon("pencil", 42, C.CARD, 18, 10f)
         edit.onClick { if (variant >= Share.SPECIAL) a.push(EditorScreen(a, r, 0, variant - Share.SPECIAL)) else a.push(EditorScreen(a, r, variant)) }
         bar.addView(edit, lp(a.dp(42), a.dp(42)).m(r = a.dp(10)))
@@ -380,6 +384,18 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
     }
 
     override fun onSynced() { onShow() }
+
+    /** Sends this recipe as a file to a chef outside the household (Discord, WhatsApp…). */
+    private fun sendRecipe() {
+        Photos.run {
+            val p = try { RecipeFiles.pack(a, listOf(r)) } catch (e: Exception) { null }
+            Photos.post {
+                if (p == null) { a.toast("Couldn't pack the recipe"); return@post }
+                if (p.clipsLeftOut) a.toast("Clips left out: too big to send")
+                try { a.startActivity(RecipeFiles.shareIntent(a, p, r.title)) } catch (e: Exception) { a.toast("No app to send it with") }
+            }
+        }
+    }
 }
 
 /** Full-screen look at a photo. */

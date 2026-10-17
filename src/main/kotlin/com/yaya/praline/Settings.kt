@@ -139,6 +139,35 @@ class SettingsScreen(a: MainActivity) : Screen(a) {
         gap.addView(fl, lp(MATCH, WRAP).m(t = a.dp(8)))
         col.addView(gap, lp(MATCH, WRAP).m(t = a.dp(12)))
 
+        // home Wi-Fi
+        col.addView(section("Home dungeon access"))
+        val hc = a.card(C.TANG, 14, 12)
+        val home = HomeWifi.saved(a)
+        val hr = a.hbox()
+        hr.addView(a.icon("wifi", 30, C.TANG), lp(a.dp(30), a.dp(30)).m(r = a.dp(10)))
+        val ht = a.vbox()
+        ht.addView(a.body(if (home.isEmpty()) "No home Wi-Fi yet" else "Home: $home", 15f, C.INK, 800))
+        ht.addView(a.note(if (home.isEmpty()) "The phones only pair and sync on your home Wi-Fi. Save it while you're home."
+            else if (HomeWifi.here(a)) "You're home: the phones sync here." else "Not home right now: nothing is sent.", 11.5f))
+        hr.addView(ht, lp(0, WRAP, 1f))
+        hc.addView(hr)
+        val hb = a.chip(if (home.isEmpty()) "Use this Wi-Fi" else "Change to this Wi-Fi", false, C.TANG, null, 13f)
+        hb.contentDescription = "home wifi"
+        hb.onClick { HomeWifi.ask(a) { rebuild() } }
+        hc.addView(hb, lp(WRAP, WRAP).m(t = a.dp(8)))
+        col.addView(hc, lp(MATCH, WRAP))
+
+        // recipe files
+        col.addView(section("Recipe files"))
+        val rf = a.card(C.LILAC, 14, 12)
+        rf.addView(a.body("Recipes from other chefs", 15f, C.INK, 800))
+        rf.addView(a.note("Send a recipe from its page (the scroll at the top). A recipe file someone sent you opens in Praliné; or pick one here.", 11.5f))
+        val ob = a.chip("Open a recipe file", false, C.LILAC, "scroll", 13f)
+        ob.contentDescription = "open recipe file"
+        ob.onClick { a.pickRecipeFile() }
+        rf.addView(ob, lp(WRAP, WRAP).m(t = a.dp(8)))
+        col.addView(rf, lp(MATCH, WRAP))
+
         // friction log
         col.addView(section("Friction log"))
         col.addView(a.note("Rest two fingers anywhere for a moment to save what's on screen, then describe what felt slow or awkward.", 11.5f), lp(MATCH, WRAP).m(b = a.dp(8)))
