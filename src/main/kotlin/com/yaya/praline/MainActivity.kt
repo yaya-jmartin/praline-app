@@ -44,6 +44,8 @@ abstract class Screen(val a: MainActivity) {
     open fun onSynced() { }
     /** A friction moment was saved or edited (Settings refreshes its list). */
     open fun onFriction() { }
+    /** What to bring back if Android closes Praliné in the background (an unsaved draft, the quest step), or null. */
+    open fun saveState(): org.json.JSONObject? = null
 
     fun make(): FrameLayout {
         root = FrameLayout(a)
@@ -171,7 +173,10 @@ class MainActivity : Activity() {
             }
         })
         setContentView(host)
+        Photos.init(this)
         push(HomeScreen(this), animate = false)
+        // Android closed the app in the background: bring back the open draft or quest
+        Resume.restore(this, savedInstanceState != null)
         Sync.onSynced = object : () -> Unit {
             override fun invoke() {
                 for (s in stack) s.onSynced()
@@ -193,7 +198,12 @@ class MainActivity : Activity() {
         if (Store.pairKey.isNotEmpty()) Sync.autoSync(this) { err -> if (err == Sync.TOO_OLD) toast(err) }
     }
 
-    override fun onPause() { super.onPause(); handler.removeCallbacks(ticker) }
+    override fun onPause() { super.onPause(); handler.removeCallbacks(ticker); Resume.save(this) }
+
+    override fun onTrimMemory(level: Int) { super.onTrimMemory(level); Photos.trim(level) }
+
+    @Suppress("DEPRECATION")
+    override fun onLowMemory() { super.onLowMemory(); Photos.trim(android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE) }
 
     override fun onDestroy() { super.onDestroy(); Sync.stopServer(this) }
 

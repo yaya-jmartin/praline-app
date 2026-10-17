@@ -82,6 +82,10 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
     var fame = 0
     /** Kitchen tools it needs: keys from [Equipment.all] or free words. */
     val equipment: MutableList<String> = ArrayList()
+    /** How many of a piece of equipment (2 mixing bowls); missing means one. */
+    val equipCount: MutableMap<String, Int> = HashMap()
+    fun count(key: String): Int = Math.max(1, equipCount[key] ?: 1)
+    fun setCount(key: String, n: Int) { if (n <= 1) equipCount.remove(key) else equipCount[key] = Math.min(n, 99) }
     var created = System.currentTimeMillis()
     var updated = System.currentTimeMillis()
     val variants: MutableList<Variant> = ArrayList()
@@ -98,6 +102,7 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
         o.put("filter", filter); o.put("str", strength.toDouble()); o.put("cooked", lastCooked); o.put("created", created); o.put("updated", updated)
         if (fame > 0) o.put("fame", fame)
         val eq = JSONArray(); for (x in equipment) eq.put(x); o.put("equip", eq)
+        if (equipCount.isNotEmpty()) { val n = JSONObject(); for ((k, c) in equipCount) if (equipment.contains(k) && c > 1) n.put(k, c); o.put("equipN", n) }
         val v = JSONArray(); for (x in variants) v.put(x.toJson()); o.put("variants", v)
         return o
     }
@@ -122,6 +127,7 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
             r.filter = o.optString("filter"); r.strength = o.optDouble("str", 0.8).toFloat(); r.lastCooked = o.optLong("cooked")
             r.created = o.optLong("created"); r.updated = o.optLong("updated"); r.fame = o.optInt("fame")
             val eq = o.optJSONArray("equip"); if (eq != null) for (k in 0 until eq.length()) r.equipment.add(eq.getString(k))
+            val en = o.optJSONObject("equipN"); if (en != null) for (k in en.keys()) r.setCount(k, en.optInt(k, 1))
             val v = o.optJSONArray("variants") ?: JSONArray()
             for (k in 0 until v.length()) r.variants.add(Variant.fromJson(v.getJSONObject(k)))
             if (r.variants.isEmpty()) r.variants.add(Variant("Classic"))

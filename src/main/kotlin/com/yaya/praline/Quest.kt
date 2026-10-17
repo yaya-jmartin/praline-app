@@ -22,6 +22,9 @@ class QuestScreen(a: MainActivity, val r: Recipe, val variant: Int, val scale: D
 
     override fun ownsTimer(id: String): Boolean = id.startsWith(r.id + "#" + variant + "#")
 
+    override fun saveState(): org.json.JSONObject? =
+        org.json.JSONObject().put("kind", "quest").put("r", r.id).put("variant", variant).put("scale", scale).put("step", current)
+
     private fun labelOf(s: Step, i: Int) = (if (s.timerLabel.isNotEmpty()) s.timerLabel else "Step ${i + 1}") + " · " + r.title
 
     override fun build(): View {
@@ -330,7 +333,7 @@ class QuestScreen(a: MainActivity, val r: Recipe, val variant: Int, val scale: D
             s.body.addView(row)
         }
         if (r.equipment.isNotEmpty()) {
-            val eq = StringBuilder(); for (k in r.equipment) { if (eq.isNotEmpty()) eq.append(", "); eq.append(Equipment.name(k)) }
+            val eq = StringBuilder(); for (k in r.equipment) { if (eq.isNotEmpty()) eq.append(", "); eq.append(Equipment.label(r, k)) }
             s.body.addView(a.note("Equipment: $eq", 12f), lp(MATCH, WRAP).m(t = a.dp(8)))
         }
         s.button("Close").show()

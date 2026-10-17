@@ -95,7 +95,7 @@ object Share {
         if (old.cls != new.cls || old.dessert != new.dessert) out.add("the class")
         if (old.effort != new.effort || old.timeMin != new.timeMin || old.servings != new.servings) out.add("time, effort or servings")
         if (old.fame != new.fame) out.add("its fame")
-        if (old.equipment != new.equipment) out.add("the equipment")
+        if (old.equipment != new.equipment || old.equipCount != new.equipCount) out.add("the equipment")
         for (v in new.variants) {
             var ov: Variant? = null
             for (x in old.variants) if (x.name == v.name) ov = x

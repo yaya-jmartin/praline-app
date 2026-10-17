@@ -39,6 +39,9 @@ object C {
     const val NIGHT_TEXT = 0xFFF3E6D3.toInt()
     const val NIGHT_MUTED = 0xFFCBB8A6.toInt()
     const val BEIGE = 0xFFE8D9C2.toInt()
+    /** Engineer gear: brass plates on steel. */
+    const val BRASS = 0xFFE0A93E.toInt()
+    const val STEEL = 0xFF4E5D6C.toInt()
     const val WHITE = 0xFFFFFFFF.toInt()
 }
 

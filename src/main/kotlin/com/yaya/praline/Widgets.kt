@@ -40,6 +40,34 @@ fun Context.chip(text: String, selected: Boolean = false, color: Int = C.BUTTER,
     return l
 }
 
+/**
+ * Engineer gear (Kenwood, KCook): a squarer brass plate on a steel shadow, with a small gear that turns,
+ * like a robotic limb bolted onto the kitchen.
+ */
+fun Context.gearChip(text: String, selected: Boolean, iconName: String, size: Float = 13f, turning: Boolean = true): LinearLayout {
+    val l = hbox()
+    val bg = InkBox(this, if (selected) C.BRASS else C.CARD, C.STEEL, 6f, 2.2f, 3.5f, text.hashCode() and 7)
+    l.background = bg
+    l.setPadding(dp(8), dp(6), dp(10) + bg.offsetPx, dp(7) + bg.offsetPx)
+    l.addView(icon(iconName, 18, if (selected) C.CARD else C.BRASS, C.INK, 7f), lp(dp(18), dp(18)).m(r = dp(5)))
+    val t = body(text, size, C.INK, 700)
+    l.addView(t)
+    l.tag = t
+    val g = icon("gear", 14, if (selected) C.STEEL else C.BRASS, C.INK, 6f)
+    l.addView(g, lp(dp(14), dp(14)).m(l = dp(6)))
+    if (turning && android.animation.ValueAnimator.areAnimatorsEnabled()) {
+        val spin = android.animation.ObjectAnimator.ofFloat(g, "rotation", 0f, 360f)
+        spin.duration = 7000; spin.repeatCount = android.animation.ValueAnimator.INFINITE; spin.interpolator = android.view.animation.LinearInterpolator()
+        g.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) { spin.start() }
+            override fun onViewDetachedFromWindow(v: View) { spin.cancel() }
+        })
+    }
+    l.contentDescription = text
+    l.pressable()
+    return l
+}
+
 /** Dark selected chip (variants, Original). */
 fun Context.darkChip(text: String, selected: Boolean, shadow: Int): LinearLayout {
     val c = chip(text, selected, if (selected) C.INK else shadow)
@@ -141,8 +169,22 @@ class FlowLayout(c: Context, private val hGap: Int, private val vGap: Int) : Vie
 // Photos
 
 object Photos {
-    private val cache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
+    /** An eighth of what Android lets this app use (set once from the phone in [init]); 24 MB until then. */
+    private var cache = newCache(24 * 1024 * 1024)
+    private fun newCache(bytes: Int) = object : LruCache<String, Bitmap>(bytes) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
+    /** Sizes the photo memory to this phone (low-RAM phones get less). */
+    fun init(c: Context) {
+        val am = c.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager ?: return
+        val mb = Math.max(8, Math.min(64, am.memoryClass / 8))
+        if (cache.maxSize() != mb * 1024 * 1024) cache = newCache(mb * 1024 * 1024)
+    }
+    fun cacheBytes(): Int = cache.maxSize()
+    /** Android asked for memory back: drop every cached photo once the app is out of sight, half while in use. */
+    fun trim(level: Int) {
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN || level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) cache.evictAll()
+        else if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) cache.trimToSize(cache.maxSize() / 2)
     }
     private val pool = Executors.newFixedThreadPool(2)
     private val main = Handler(Looper.getMainLooper())

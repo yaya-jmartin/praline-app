@@ -113,6 +113,7 @@ class QrScanner(c: Context, private val onCode: (String) -> Unit) : FrameLayout(
             val params = camera.parameters
             // a sharp preview size; the crop in fit() takes care of the shape. (1.1 picked the size closest
             // to the square view, which on some phones was 176x144, too blurry for a QR code to read.)
+            val portrait = info.orientation == 90 || info.orientation == 270
             val sizes = params.supportedPreviewSizes
             val dims = ArrayList<IntArray>()
             for (sz in sizes) dims.add(intArrayOf(sz.width, sz.height))

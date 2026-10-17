@@ -31,10 +31,15 @@ object Filters {
 
     private fun blur(src: Bitmap, factor: Int): Bitmap {
         val w = Math.max(1, src.width / factor); val h = Math.max(1, src.height / factor)
+        // every step's bitmap is freed as soon as the next one exists
         val small = Bitmap.createScaledBitmap(src, w, h, true)
         val smaller = Bitmap.createScaledBitmap(small, Math.max(1, w / 2), Math.max(1, h / 2), true)
+        if (smaller !== small && small !== src) small.recycle()
         val back = Bitmap.createScaledBitmap(smaller, w, h, true)
-        return Bitmap.createScaledBitmap(back, src.width, src.height, true)
+        if (back !== smaller && smaller !== src) smaller.recycle()
+        val out = Bitmap.createScaledBitmap(back, src.width, src.height, true)
+        if (out !== back && back !== src) back.recycle()
+        return out
     }
 
     /** Applies [f] at [strength] (0 = original, 1 = full spell). */
@@ -66,8 +71,11 @@ object Filters {
             val bright = clamp((l - 0.6f) / 0.4f)
             brightPx[i] = (255 shl 24) or ((cr * bright * 255).toInt() shl 16) or ((cg * bright * 255).toInt() shl 8) or (cb * bright * 255).toInt()
         }
-        val bloomBmp = blur(Bitmap.createBitmap(brightPx, w, h, Bitmap.Config.ARGB_8888), Math.max(2, w / 36))
+        val brightBmp = Bitmap.createBitmap(brightPx, w, h, Bitmap.Config.ARGB_8888)
+        val bloomBmp = blur(brightBmp, Math.max(2, w / 36))
+        brightBmp.recycle()
         val bloom = IntArray(n); bloomBmp.getPixels(bloom, 0, w, 0, 0, w, h)
+        bloomBmp.recycle()
         val res = IntArray(n)
         for (y in 0 until h) {
             val dy = (y - h * 0.48f) / (h / 2f)
@@ -94,7 +102,9 @@ object Filters {
         val graded = Bitmap.createBitmap(res, w, h, Bitmap.Config.ARGB_8888)
         // tilt-shift: soften the top and bottom edges
         val soft = blur(graded, Math.max(2, w / 160))
+        graded.recycle()
         val sp = IntArray(n); soft.getPixels(sp, 0, w, 0, 0, w, h)
+        soft.recycle()
         val rnd = java.util.Random(1)
         for (y in 0 until h) {
             val m = clamp((Math.abs(y - h * 0.5f) / (h * 0.5f) - 0.45f) * 2.2f)
@@ -140,7 +150,9 @@ object Filters {
         val scale = Math.min(1f, maxSide.toFloat() / Math.max(bmp.width, bmp.height))
         if (rot != 0f || scale < 1f) {
             val m = Matrix(); m.postScale(scale, scale); m.postRotate(rot)
-            bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+            val turned = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+            if (turned !== bmp) bmp.recycle()
+            bmp = turned
         }
         return bmp
     }

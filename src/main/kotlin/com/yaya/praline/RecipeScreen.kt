@@ -121,11 +121,12 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
             body.addView(a.label("Equipment"), lp(MATCH, WRAP).m(t = a.dp(14), b = a.dp(6)))
             val fl = FlowLayout(a, a.dp(7), a.dp(7))
             for (k in r.equipment) {
+                if (Equipment.engineer(k)) { fl.addView(a.gearChip(Equipment.label(r, k), true, Equipment.icon(k), 12.5f).also { it.isClickable = false }); continue }
                 val c = a.hbox()
                 c.background = InkBox(a, C.CARD, Equipment.color(k), 999f, 1.8f, 2.5f, k.length)
                 c.setPadding(a.dp(8), a.dp(4), a.dp(12), a.dp(6))
                 c.addView(a.icon(Equipment.icon(k), 16, Equipment.color(k), C.INK, 7f), lp(a.dp(16), a.dp(16)).m(r = a.dp(5)))
-                c.addView(a.body(Equipment.name(k), 12.5f, C.INK, 600))
+                c.addView(a.body(Equipment.label(r, k), 12.5f, C.INK, 600))
                 fl.addView(c)
             }
             body.addView(fl)

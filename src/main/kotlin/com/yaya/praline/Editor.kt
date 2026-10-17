@@ -23,7 +23,8 @@ import android.widget.TextView
  * [special] >= 0 edits one of this phone's My Variant specials instead of the shared recipe.
  * [newVariant] non-null starts a new variant with that name (a copy of [startVariant]).
  */
-class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, val special: Int = -1, newVariant: String? = null) : Screen(a) {
+class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, val special: Int = -1, newVariant: String? = null,
+                   draft: Recipe? = null, draftCreated: Int = -1) : Screen(a) {
     val isNew = original == null
     val isSpecial = special >= 0 && original != null
     override val name: String get() = if (isNew) "New recipe" else if (isSpecial) "Edit special" else "Edit recipe"
@@ -55,6 +56,26 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
             createdVariant = variant
         }
         snapshot = if (newVariant != null) "" else r.toJson().toString()
+        if (draft != null) {
+            // brought back after Android closed the app: the unsaved draft replaces the copy (and counts as changed)
+            r.variants.clear()
+            val d = draft.toJson(); d.put("id", r.id)
+            val back = Recipe.fromJson(d)
+            r.title = back.title; r.dessert = back.dessert; r.cls = back.cls; r.tier = back.tier; r.effort = back.effort; r.timeMin = back.timeMin
+            r.servings = back.servings; r.photo = back.photo; r.photoOrig = back.photoOrig; r.filter = back.filter; r.strength = back.strength
+            r.fame = back.fame; r.equipment.clear(); r.equipment.addAll(back.equipment); r.equipCount.clear(); r.equipCount.putAll(back.equipCount)
+            r.variants.addAll(back.variants)
+            variant = Math.max(0, Math.min(startVariant, r.variants.size - 1))
+            createdVariant = draftCreated
+        }
+    }
+
+    override fun saveState(): org.json.JSONObject? {
+        commit()
+        val o = org.json.JSONObject()
+        o.put("kind", "editor"); o.put("draft", r.toJson()); o.put("new", isNew); o.put("variant", variant); o.put("special", special)
+        o.put("created", createdVariant); o.put("tab", tab)
+        return o
     }
 
     private fun names(): List<String> { val l = ArrayList<String>(); for (v in r.variants) l.add(v.name); return l }
@@ -437,19 +458,31 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
     private fun equipment(col: LinearLayout) {
         col.addView(a.note("What the recipe calls for. Tap to pick; your favourite weapon counts them too.", 11.5f), lp(MATCH, WRAP).m(b = a.dp(8)))
         val fl = FlowLayout(a, a.dp(7), a.dp(8))
-        for (t in Equipment.all) {
+        // a tap picks a tool; tapping a picked one sets how many (2 × Mixing bowl) or puts it back
+        for (t in Equipment.all) if (!t.engineer) {
             val on = r.equipment.contains(t.key)
-            val ch = a.chip(t.name, on, t.color, t.icon, 13f)
+            val ch = a.chip(if (on) Equipment.label(r, t.key) else t.name, on, t.color, t.icon, 13f)
             ch.contentDescription = "equipment " + t.key
-            ch.onClick { if (on) r.equipment.remove(t.key) else r.equipment.add(t.key); refreshEquipment() }
+            ch.onClick { if (on) countSheet(t.key) else { r.equipment.add(t.key); refreshEquipment() } }
             fl.addView(ch)
         }
         for (k in r.equipment) if (Equipment.get(k) == null) {
-            val ch = a.chip("$k  ×", true, C.BEIGE, "spoon", 13f)
-            ch.onClick { r.equipment.remove(k); refreshEquipment() }
+            val ch = a.chip(Equipment.label(r, k), true, C.BEIGE, "spoon", 13f)
+            ch.contentDescription = "equipment $k"
+            ch.onClick { countSheet(k) }
             fl.addView(ch)
         }
         col.addView(fl)
+        col.addView(a.label("Engineer's limbs"), lp(MATCH, WRAP).m(t = a.dp(14), b = a.dp(6)))
+        val gl = FlowLayout(a, a.dp(7), a.dp(8))
+        for (t in Equipment.all) if (t.engineer) {
+            val on = r.equipment.contains(t.key)
+            val ch = a.gearChip(if (on) Equipment.label(r, t.key) else t.name, on, t.icon, 13f)
+            ch.contentDescription = "equipment " + t.key
+            ch.onClick { if (on) countSheet(t.key) else { r.equipment.add(t.key); refreshEquipment() } }
+            gl.addView(ch)
+        }
+        col.addView(gl)
         val row = a.hbox()
         val e = Fields.line(a, "Something else (mandoline, piping bag…)", 14f)
         e.imeOptions = EditorInfo.IME_ACTION_DONE
@@ -465,6 +498,29 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         })
         row.addView(add, lp(WRAP, WRAP).m(l = a.dp(8)))
         col.addView(row, lp(MATCH, WRAP).m(t = a.dp(12)))
+    }
+
+    /** How many of a picked tool, or putting it back. */
+    private fun countSheet(key: String) {
+        val s = Sheet(a, Equipment.name(key))
+        var n = r.count(key)
+        val row = a.hbox(); row.gravity = Gravity.CENTER_VERTICAL
+        val minus = a.roundIcon("minus", 36, C.CARD, 16)
+        val t = a.body("", 22f, C.INK, 800); t.gravity = Gravity.CENTER
+        t.contentDescription = "equipment count"
+        val plus = a.roundIcon("plus", 36, C.CARD, 16)
+        fun paint() { t.text = "$n ×" }
+        minus.onClick { n = Math.max(1, n - 1); paint() }
+        plus.onClick { n = Math.min(99, n + 1); paint() }
+        minus.contentDescription = "fewer"; plus.contentDescription = "more"
+        row.addView(minus, lp(a.dp(36), a.dp(36)))
+        row.addView(t, lp(a.dp(110), WRAP))
+        row.addView(plus, lp(a.dp(36), a.dp(36)))
+        s.body.addView(row, lp(MATCH, WRAP))
+        paint()
+        s.button("Remove") { r.equipment.remove(key); r.equipCount.remove(key); refreshEquipment() }
+        s.button("Set", primary = true) { r.setCount(key, n); refreshEquipment() }
+        s.show()
     }
 
     private fun refreshEquipment() {
@@ -555,11 +611,11 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         val tc = if (st.timerSec > 0) a.timerChip(fmtClock(st.timerSec.toLong()) + roundsText + (if (st.timerLabel.isNotEmpty()) " · " + st.timerLabel else ""))
                  else a.chip("Add a timer", false, C.TIMER, "hour", 12f)
         tc.onClick { timerSheet(v, st) }
-        extras.addView(tc)
+        extras.addView(if (st.timerSec > 0) withX(tc, "remove timer") { st.timerSec = 0; st.timerLabel = ""; st.rounds = 1; redrawSteps(v) } else tc)
         if (st.video.isNotEmpty()) {
             val vc = a.chip("Clip", true, C.LILAC, "play", 12f)
             vc.onClick { videoMenu(v, st) }
-            extras.addView(vc)
+            extras.addView(withX(vc, "remove clip") { st.video = ""; redrawSteps(v) })
         } else {
             val vc = a.chip("Video clip", false, C.LILAC, "cam", 12f)
             vc.onClick { addVideo(v, st) }
@@ -568,8 +624,8 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         if (st.hint.isNotEmpty()) {
             val p = RoundPhoto(a, 10f); p.outline = true; p.show(st.hint, 240); p.rotation = 2.5f
             p.onClick { hintMenu(v, st) }
-            p.layoutParams = android.view.ViewGroup.LayoutParams(a.dp(54), a.dp(54))
-            extras.addView(p)
+            p.layoutParams = android.widget.FrameLayout.LayoutParams(a.dp(54), a.dp(54))
+            extras.addView(withX(p, "remove picture") { st.hint = ""; redrawSteps(v) })
         } else {
             val hc = a.chip("Hint picture", false, C.MINT, "cam", 12f)
             hc.onClick { addHint(v, st) }
@@ -578,6 +634,21 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         card.addView(extras, lp(MATCH, WRAP).m(t = a.dp(8)))
         card.layoutParams = lp(MATCH, WRAP).m(b = a.dp(12))
         return card
+    }
+
+    /** A step extra (timer, clip, picture) with a small × on its corner that takes it off the step. */
+    private fun withX(v: View, desc: String, remove: () -> Unit): View {
+        val f = android.widget.FrameLayout(a)
+        f.clipChildren = false; f.clipToPadding = false
+        val lpv = v.layoutParams
+        val w = if (lpv != null && lpv.width > 0) lpv.width else WRAP
+        val h = if (lpv != null && lpv.height > 0) lpv.height else WRAP
+        f.addView(v, android.widget.FrameLayout.LayoutParams(w, h).also { it.topMargin = a.dp(8); it.rightMargin = a.dp(9) })
+        val x = a.roundIcon("x", 22, C.CARD, 10, 9f)
+        x.contentDescription = desc
+        x.onClick { remove() }
+        f.addView(x, android.widget.FrameLayout.LayoutParams(a.dp(22), a.dp(22), Gravity.TOP or Gravity.END))
+        return f
     }
 
     /** Parses the variant's typed ingredient lines now, so steps can match them. */

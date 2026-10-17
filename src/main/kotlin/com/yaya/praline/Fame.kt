@@ -121,6 +121,7 @@ object Fame {
 
     /** Kitchen weapons and the words that give them away in a recipe's steps. */
     val WEAPONS = listOf(
+        Triple("gear", "Robot limb", arrayOf("kenwood", "kcook", "stand mixer", "robot", "thermomix", "multicooker", "food processor")),
         Triple("whisk", "Whisk", arrayOf("whisk", "fouet", "beat", "batt", "whip", "monter", "meringue", "emulsi")),
         Triple("pan", "Pan", arrayOf("pan", "poêle", "poele", "skillet", "fry", "sauté", "saute", "sear", "casserole", "wok", "caramel")),
         Triple("knife", "Knife", arrayOf("chop", "slice", "dice", "cut", "mince", "couteau", "knife", "émince", "emince", "hach", "coupe", "tranch", "julienne", "peel", "épluch")),
@@ -185,13 +186,18 @@ object Fame {
 
 /** Kitchen tools a recipe can call for. Free words are allowed too. */
 object Equipment {
-    class Tool(val key: String, val name: String, val icon: String, val color: Int)
+    /** [engineer] tools are the robot kitchen helpers (stand mixer, multicooker): brass-and-gear chips. */
+    class Tool(val key: String, val name: String, val icon: String, val color: Int, val engineer: Boolean = false)
     val all = listOf(
         Tool("whisk", "Whisk", "whisk", C.BUTTER), Tool("bowl", "Bowl", "bowl", C.TANG), Tool("pan", "Pan", "pan", C.CARAMEL),
         Tool("pot", "Pot", "ladle", C.BLUE), Tool("knife", "Knife", "knife", C.RASP), Tool("spoon", "Spoon", "spoon", C.MINT),
         Tool("pin", "Rolling pin", "pin", C.LILAC), Tool("oven", "Oven", "flame", C.TANG), Tool("tin", "Cake tin", "drum", C.PIST),
         Tool("tray", "Baking tray", "plate", C.BUTTER), Tool("blender", "Blender", "potion", C.MINT), Tool("grater", "Grater", "cheese", C.BUTTER),
-        Tool("sieve", "Sieve", "dots", C.LILAC), Tool("scale", "Scale", "d20", C.PIST))
+        Tool("sieve", "Sieve", "dots", C.LILAC), Tool("scale", "Scale", "d20", C.PIST), Tool("mixbowl", "Mixing bowl", "bowl", C.MINT),
+        Tool("kenwood", "Kenwood", "mixer", C.BRASS, true), Tool("kcook", "KCook", "cooker", C.BRASS, true))
+    fun engineer(key: String): Boolean = get(key)?.engineer ?: false
+    /** "2 × Mixing bowl", or just the name for one. */
+    fun label(r: Recipe, key: String): String { val n = r.count(key); return if (n > 1) "$n × " + name(key) else name(key) }
     fun get(key: String): Tool? { for (t in all) if (t.key == key) return t; return null }
     fun name(key: String): String = get(key)?.name ?: key
     fun icon(key: String): String = get(key)?.icon ?: "spoon"
