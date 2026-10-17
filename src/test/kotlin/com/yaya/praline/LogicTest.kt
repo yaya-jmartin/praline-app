@@ -17,7 +17,8 @@ import java.util.Calendar
 class LogicTest {
     private val c get() = RuntimeEnvironment.getApplication()
 
-    @Before fun clean() { Store.reset(); Store.load(c) }
+    @Before fun clean() { Store.reset(); Store.load(c); HomeWifi.assumeHome = true }
+    @org.junit.After fun away() { HomeWifi.assumeHome = false }
 
     @Test fun quantitiesParse() {
         val a = Ingredient.parse("200 g flour")

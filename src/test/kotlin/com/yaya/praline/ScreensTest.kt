@@ -92,7 +92,10 @@ class ScreensTest {
         peer.history.add(CookEntry(chili.id, "Spicier", System.currentTimeMillis(), 110))
         Store.peer = peer; Store.pairKey = "k"
         Store.save(c)
+        HomeWifi.assumeHome = true
     }
+
+    @org.junit.After fun away() { HomeWifi.assumeHome = false }
 
     private fun launch(): MainActivity {
         val a = Robolectric.buildActivity(MainActivity::class.java).setup().get()
@@ -544,5 +547,115 @@ class ScreensTest {
         byDesc(root, "portrait 8").performClick(); idle()
         assertTrue(hasPart(root, "Reach level 16"))
         shot(root, "38-portraits")
+    }
+
+    @Test fun missionMapWalksTheParty() {
+        val a = launch()
+        val w = Missions.SUNFORGE
+        val t0 = System.currentTimeMillis() - 50 * 3_600_000L
+        Missions.start(c, w, t0)
+        // the party cooked its way past the first two spots and stands at the third
+        var at = t0
+        fun cook(id: String, xp: Int) { at += 3_600_000L; Store.me.history.add(CookEntry(id, "Classic", at, xp)) }
+        cook("x", 90); cook(Missions.recipeId(w.id, 0), 60); cook("x", 60); cook(Missions.recipeId(w.id, 1), 40); cook("x", 160)
+        Store.peer!!.history.add(CookEntry("y", "Classic", at + 1000, 60))
+        Store.save(c)
+        a.push(MissionScreen(a)); idle(800)
+        val root = a.window.decorView
+        assertTrue(has(root, "The Sunforge Sands"))
+        assertTrue(has(root, "Recipe 3 / 10"))
+        assertTrue(hasPart(root, "must cook"))
+        assertNotNull(Store.recipe(Missions.recipeId(w.id, 2)))
+        assertNull(Store.recipe(Missions.recipeId(w.id, 3)))
+        val map = all(root).filterIsInstance<MissionMap>()[0]
+        // the scenery loads in the background as the map draws
+        for (k in 0 until 3) { map.draw(Canvas(Bitmap.createBitmap(10, 10, Bitmap.Config.ARGB_8888))); for (j in 0 until 6) { Thread.sleep(60); idle(100) } }
+        shot(root, "40-mission-map")
+        // the whole map, every slice painted
+        map.viewTop = 0; map.viewH = map.height
+        for (k in 0 until 3) { map.draw(Canvas(Bitmap.createBitmap(map.width, map.height, Bitmap.Config.ARGB_8888))); for (j in 0 until 8) { Thread.sleep(60); idle(100) } }
+        val b = Bitmap.createBitmap(map.width, map.height, Bitmap.Config.ARGB_8888)
+        map.draw(Canvas(b)); save(b, "41-mission-map-whole")
+        map.onSpot!!.invoke(2); idle()
+        assertTrue(has(root, "Open the recipe"))
+        shot(root, "42-mission-spot-here")
+        a.onBackPressed(); idle()
+        map.onSpot!!.invoke(6); idle()
+        assertTrue(hasPart(root, "more XP to reach it"))
+        shot(root, "43-mission-spot-locked")
+        a.onBackPressed(); idle()
+        // home has the missions entry
+        a.pop(); idle(600)
+        assertTrue(has(root, "Missions"))
+        shot(root, "44-home-missions")
+    }
+
+    @Test fun missionCompleteLightsTheCalice() {
+        val a = launch()
+        val w = Missions.SUNFORGE
+        val t0 = System.currentTimeMillis() - 200 * 3_600_000L
+        Missions.start(c, w, t0)
+        var at = t0
+        for (i in w.spots.indices) {
+            at += 3_600_000L; Store.me.history.add(CookEntry("x", "Classic", at, 300))
+            at += 3_600_000L; Store.me.history.add(CookEntry(Missions.recipeId(w.id, i), "Classic", at, 10))
+        }
+        a.push(MissionScreen(a)); idle(800)
+        val root = a.window.decorView
+        assertTrue(has(root, "The Calice is lit"))
+        val map = all(root).filterIsInstance<MissionMap>()[0]
+        for (k in 0 until 3) { map.draw(Canvas(Bitmap.createBitmap(10, 10, Bitmap.Config.ARGB_8888))); for (j in 0 until 6) { Thread.sleep(60); idle(100) } }
+        shot(root, "45-mission-complete")
+        assertEquals(10, Store.recipes.count { it.world == "sunforge" })
+    }
+
+    @Test fun editorCountsEquipmentAndRemovesStepExtras() {
+        val a = launch()
+        tatin.variants[0].steps[0].video = "none.mp4"
+        val e = EditorScreen(a, tatin, 0)
+        a.push(e); idle(600)
+        val root = a.window.decorView
+        tap(root, "Equipment · 0")
+        byDesc(root, "equipment mixbowl").performClick(); idle()
+        byDesc(root, "equipment kenwood").performClick(); idle()
+        // a selected chip asks how many
+        byDesc(root, "equipment mixbowl").performClick(); idle()
+        byDesc(root, "more").performClick(); idle()
+        assertTrue(has(root, "2 ×"))
+        shot(root, "46-equipment-count")
+        tap(root, "Set")
+        assertEquals(2, e.r.count("mixbowl"))
+        assertTrue(hasPart(root, "2 × Mixing bowl"))
+        longShot(a, "47-editor-equipment-engineer")
+        tap(root, "Steps · 3")
+        longShot(a, "48-editor-step-extras")
+        byDesc(root, "remove picture").performClick(); idle()
+        byDesc(root, "remove clip").performClick(); idle()
+        assertEquals("", e.r.variants[0].steps[0].hint)
+        assertEquals("", e.r.variants[0].steps[0].video)
+        byDesc(root, "remove timer").performClick(); idle()
+        assertEquals(0, e.r.variants[0].steps[1].timerSec)
+        tap(root, "Save"); idle(600)
+        val saved = Store.recipe(tatin.id)!!
+        assertEquals(2, saved.count("mixbowl"))
+        a.push(RecipeScreen(a, saved)); idle(600)
+        assertTrue(hasPart(root, "2 × Mixing bowl"))
+        longShot(a, "49-recipe-equipment")
+    }
+
+    @Test fun pairingWaitsForHomeWifi() {
+        val a = launch()
+        HomeWifi.assumeHome = false
+        Store.peer = null; Store.pairKey = ""
+        val p = PairScreen(a); p.mode = 0
+        a.push(p); idle(600)
+        val root = a.window.decorView
+        assertTrue(has(root, "Home dungeon access"))
+        assertTrue(byDesc(root, "set home wifi").isShown)
+        shot(root, "50-pair-home-first")
+        a.pop(); idle(600)
+        a.push(SettingsScreen(a)); idle(600)
+        assertTrue(has(root, "Open a recipe file") || hasPart(root, "recipe file"))
+        longShot(a, "51-settings-home-files")
     }
 }

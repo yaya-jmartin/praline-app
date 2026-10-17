@@ -44,6 +44,7 @@ object Sync {
         val t = JSONObject(); for ((k, v) in Store.tombstones) t.put(k, v); o.put("tomb", t)
         val p = JSONObject(); for ((k, v) in Store.plan) p.put(k, v); o.put("plan", p)
         o.put("planUpdated", Store.planUpdated)
+        o.put("missions", Missions.toJson())
         val ob = JSONArray(); for (x in Store.outbox) ob.put(x.toJson()); o.put("outbox", ob)
         val an = JSONObject(); for ((k, v) in Store.answers) an.put(k, v); o.put("answers", an)
         if (includePhotos && c != null) { val ph = JSONArray(); for (n in localPhotos(c)) ph.put(n); o.put("photos", ph) }
@@ -81,6 +82,7 @@ object Sync {
         for (id in gone) Store.peerSeen.remove(id)
         news.addAll(Share.merge(remote))
         Store.inbox.removeAll { Store.recipe(it.recipeId) == null }
+        Missions.merge(remote.optJSONObject("missions"))
         if (remote.optLong("planUpdated") > Store.planUpdated) {
             Store.plan.clear()
             val p = remote.optJSONObject("plan") ?: JSONObject()

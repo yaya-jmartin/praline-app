@@ -84,6 +84,8 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
     val equipment: MutableList<String> = ArrayList()
     /** How many of a piece of equipment (2 mixing bowls); missing means one. */
     val equipCount: MutableMap<String, Int> = HashMap()
+    /** The mission world this recipe was found in ("sunforge"), or "". */
+    var world = ""
     fun count(key: String): Int = Math.max(1, equipCount[key] ?: 1)
     fun setCount(key: String, n: Int) { if (n <= 1) equipCount.remove(key) else equipCount[key] = Math.min(n, 99) }
     var created = System.currentTimeMillis()
@@ -102,6 +104,7 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
         o.put("filter", filter); o.put("str", strength.toDouble()); o.put("cooked", lastCooked); o.put("created", created); o.put("updated", updated)
         if (fame > 0) o.put("fame", fame)
         val eq = JSONArray(); for (x in equipment) eq.put(x); o.put("equip", eq)
+        if (world.isNotEmpty()) o.put("world", world)
         if (equipCount.isNotEmpty()) { val n = JSONObject(); for ((k, c) in equipCount) if (equipment.contains(k) && c > 1) n.put(k, c); o.put("equipN", n) }
         val v = JSONArray(); for (x in variants) v.put(x.toJson()); o.put("variants", v)
         return o
@@ -127,6 +130,7 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
             r.filter = o.optString("filter"); r.strength = o.optDouble("str", 0.8).toFloat(); r.lastCooked = o.optLong("cooked")
             r.created = o.optLong("created"); r.updated = o.optLong("updated"); r.fame = o.optInt("fame")
             val eq = o.optJSONArray("equip"); if (eq != null) for (k in 0 until eq.length()) r.equipment.add(eq.getString(k))
+            r.world = o.optString("world")
             val en = o.optJSONObject("equipN"); if (en != null) for (k in en.keys()) r.setCount(k, en.optInt(k, 1))
             val v = o.optJSONArray("variants") ?: JSONArray()
             for (k in 0 until v.length()) r.variants.add(Variant.fromJson(v.getJSONObject(k)))
@@ -212,6 +216,8 @@ object Store {
     var planUpdated = 0L
     /** Deleted recipe ids -> when, so a sync doesn't bring them back. */
     val tombstones = HashMap<String, Long>()
+    /** Party missions: world id -> when it started. */
+    val missions = HashMap<String, Long>()
     var pairKey = ""
     var peerHost = ""
     var peerPort = 0
@@ -248,7 +254,7 @@ object Store {
     }
 
     private fun clearAll() {
-        recipes.clear(); plan.clear(); tombstones.clear(); peer = null
+        recipes.clear(); plan.clear(); tombstones.clear(); missions.clear(); peer = null
         mine.clear(); inbox.clear(); outbox.clear(); answers.clear(); handled.clear(); peerSeen.clear()
     }
 
@@ -261,6 +267,7 @@ object Store {
         val p = o.optJSONObject("plan") ?: JSONObject()
         val it = p.keys(); while (it.hasNext()) { val k = it.next(); plan[k] = p.getString(k) }
         planUpdated = o.optLong("planUpdated")
+        Missions.merge(o.optJSONObject("missions"))
         val t = o.optJSONObject("tomb") ?: JSONObject()
         val it2 = t.keys(); while (it2.hasNext()) { val k = it2.next(); tombstones[k] = t.getLong(k) }
         pairKey = o.optString("pairKey"); peerHost = o.optString("peerHost"); peerPort = o.optInt("peerPort")
@@ -286,6 +293,7 @@ object Store {
         val pe = peer; if (pe != null) o.put("peer", pe.toJson())
         val p = JSONObject(); for ((k, v) in plan) p.put(k, v); o.put("plan", p); o.put("planUpdated", planUpdated)
         val t = JSONObject(); for ((k, v) in tombstones) t.put(k, v); o.put("tomb", t)
+        o.put("missions", Missions.toJson())
         o.put("pairKey", pairKey); o.put("peerHost", peerHost); o.put("peerPort", peerPort)
         val m = JSONObject()
         for ((k, l) in mine) { val arr = JSONArray(); for (v in l) arr.put(v.toJson()); if (arr.length() > 0) m.put(k, arr) }

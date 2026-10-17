@@ -124,19 +124,25 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         roll.addView(d20, lp(a.dp(34), a.dp(34)))
         roll.addView(a.body("Roll a recipe", 10.5f, C.INK, 600).single(), lp(WRAP, WRAP))
         roll.onClick { rollDice(d20) }
-        left.addView(roll, lp(WRAP, WRAP).m(r = a.dp(18)))
+        left.addView(roll, lp(WRAP, WRAP).m(r = a.dp(14)))
         val board = a.vbox(); board.gravity = Gravity.CENTER_HORIZONTAL
         board.addView(a.icon("scroll", 34, C.LILAC), lp(a.dp(34), a.dp(34)))
         board.addView(a.body("Quest board", 10.5f, C.INK, 600).single(), lp(WRAP, WRAP))
         board.onClick { a.push(BoardScreen(a)) }
-        left.addView(board, lp(WRAP, WRAP).m(r = a.dp(18)))
+        left.addView(board, lp(WRAP, WRAP).m(r = a.dp(14)))
+        val miss = a.vbox(); miss.gravity = Gravity.CENTER_HORIZONTAL
+        miss.addView(a.icon("map", 34, C.TANG), lp(a.dp(34), a.dp(34)))
+        miss.addView(a.body("Missions", 10.5f, C.INK, 600).single(), lp(WRAP, WRAP))
+        miss.contentDescription = "Party missions"
+        miss.onClick { a.push(MissionScreen(a)) }
+        left.addView(miss, lp(WRAP, WRAP).m(r = a.dp(14)))
         val set = a.vbox(); set.gravity = Gravity.CENTER_HORIZONTAL
         set.addView(a.icon("dots", 34, C.MINT), lp(a.dp(34), a.dp(34)))
         set.addView(a.body("Settings", 10.5f, C.INK, 600).single(), lp(WRAP, WRAP))
         set.contentDescription = "Settings"
         set.onClick { a.push(SettingsScreen(a)) }
         left.addView(set)
-        bar.addView(left, flp(WRAP, WRAP, Gravity.START or Gravity.BOTTOM).m(l = a.dp(22), b = a.dp(10)))
+        bar.addView(left, flp(WRAP, WRAP, Gravity.START or Gravity.BOTTOM).m(l = a.dp(16), b = a.dp(10)))
         val fab = FrameLayout(a)
         val fbg = InkBox(a, C.RASP, C.INK, 999f, 2.4f, 4f, 2)
         fab.background = fbg
@@ -258,8 +264,15 @@ class HomeScreen(a: MainActivity) : Screen(a) {
     }
 
     private var shown = false
-    override fun onShow() { if (shown) rebuild(); shown = true }
-    override fun onSynced() { rebuild() }
+    override fun onShow() { missionRecipes(); if (shown) rebuild(); shown = true }
+    override fun onSynced() { missionRecipes(); rebuild() }
+
+    /** Mission recipes the party reached since last time (a cook, or the other chef's cooks after a sync). */
+    private fun missionRecipes() {
+        val added = ArrayList<Recipe>()
+        for (w in Missions.all) if (Missions.started(w) > 0L) added.addAll(Missions.unlock(a, w))
+        if (added.isNotEmpty()) { Sync.nudge(a); a.toast(if (added.size == 1) "Party mission: ${added[0].title} joined your grimoire" else "Party mission: ${added.size} recipes joined your grimoire") }
+    }
 }
 
 /** "Fate chose…": the result of a d20 roll, with cook / reroll. */

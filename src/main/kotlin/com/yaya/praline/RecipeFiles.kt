@@ -56,7 +56,7 @@ object RecipeFiles {
                 val vs = o.optJSONArray("variants") ?: JSONArray()
                 for (i in 0 until vs.length()) {
                     val st = vs.getJSONObject(i).optJSONArray("steps") ?: continue
-                    for (k in 0 until st.length()) st.getJSONObject(k).remove("video")
+                    for (k in 0 until st.length()) st.getJSONObject(k).remove("vd")
                 }
             }
             arr.put(o)
@@ -165,7 +165,7 @@ object RecipeFiles {
                 val st = vs.getJSONObject(i).optJSONArray("steps") ?: continue
                 for (k in 0 until st.length()) {
                     val s = st.getJSONObject(k)
-                    for (key in arrayOf("hint", "video")) { val v = s.optString(key); if (v.isNotEmpty()) s.put(key, rename[v] ?: "") }
+                    for (key in arrayOf("h", "vd")) { val v = s.optString(key); if (v.isNotEmpty()) s.put(key, rename[v] ?: "") }
                 }
             }
             val copy = Recipe.fromJson(o)

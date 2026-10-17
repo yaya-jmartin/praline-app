@@ -26,7 +26,8 @@ class V11Test {
     private val c get() = RuntimeEnvironment.getApplication()
     private val day = 86_400_000L
 
-    @Before fun clean() { Store.reset(); Store.load(c) }
+    @Before fun clean() { Store.reset(); Store.load(c); HomeWifi.assumeHome = true }
+    @org.junit.After fun away() { HomeWifi.assumeHome = false }
 
     private fun ings(vararg lines: String): MutableList<Ingredient> { val l = ArrayList<Ingredient>(); for (x in lines) l.add(Ingredient.parse(x)); return l }
 
