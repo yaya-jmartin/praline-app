@@ -2,9 +2,9 @@
 
 Strict working rules for Claude on this app. Read this file in full before answering, planning or changing anything.
 If this file and a chat message disagree, Yaya's latest message wins and this file gets updated in the same change.
-This file belongs at the root of the Praliné source (`praline/COMMAND_FILE_CLAUDE.md`); the next source tarball carries it there.
+Repository: `yaya-jmartin/praline-app` (private). This file lives at its root.
 
-App: **Praliné**, package `com.yaya.praline`, current version **1.2** (versionCode 3). Source: `/mnt/project-files/praline/praline-1.2-source.tar.gz` (a local git history is inside the tarball; no GitHub repository yet).
+App: **Praliné**, package `com.yaya.praline`, current version **1.2** (versionCode 3); **1.3** (versionCode 4) prepared on branch `claude/praline-1.3-prep`, PR #11, waiting for Yaya's go. Source: this repository (history from 1.1 on).
 
 ---
 
@@ -36,11 +36,11 @@ App: **Praliné**, package `com.yaya.praline`, current version **1.2** (versionC
 | UI | Views built in code (`Screen` subclasses in one `MainActivity`), custom drawables (`Ink`, `InkBox`, `PaperDrawable`, `TornEdge`), fonts Mea Culpa (titles) and Fraunces (body) | no `R` class |
 | Storage | `filesDir/praline.json` (cookbook, chefs, proposals; atomic write via `.tmp`, broken file kept as `praline.broken.json`), `filesDir/photos/`, SharedPreferences `app` for UI prefs | |
 | Camera | `android.hardware.Camera` (deprecated API) + `TextureView` for the QR scanner (preview size from `pickPreviewSize`: sharpest ≤1080p; refocus every 1.5 s; two binarizers + inverted); system camera intents for photos/clips via `PhotoProvider` | |
-| Sync | Same-Wi-Fi TCP socket (`ServerSocket`), NSD (DNS-SD) discovery, protocol v2, JSON payloads; only on the saved home Wi-Fi (`HomeWifi`, SSID via location permission) | no server, no account |
+| Sync | Same-Wi-Fi TCP socket (`ServerSocket`), NSD (DNS-SD) discovery, protocol 3 (1.3): ECDH key exchange per sync, mutual proof of the pairing secret, AES-256-GCM sealed streams (`SecureLink`), JSON payloads; only on the saved home Wi-Fi (`HomeWifi`, SSID via location permission) | no server, no account |
 | Recipe files | `.praline` zip (praline.json + photos/) shared through the share sheet, opened via VIEW/SEND intents (`RecipeFiles`) | for chefs outside the household |
 | Missions | `Missions` (logic, world list), `Templates` (placeholder recipes), `MissionMap` (painted slices in assets/missions/<world>/ + live effects), `MissionScreen` | |
 | Timers | `AlarmManager` + `TimerReceiver`, `BootReceiver`; hand-off to Pistachio with `ACTION_SET_TIMER` | |
-| Build / tests | Gradle → ProGuard → dx → aapt2 → apksigner; Robolectric 4.14.1 | signing alias `praline`, key + password only in `signing-backup/`, never in git or memory |
+| Build / tests | Gradle → ProGuard → dx → aapt2 → apksigner; Robolectric 4.14.1. From 1.3 also `agp/` (Android Gradle Plugin 8.7.3, compileSdk 35) built by `.github/workflows/android.yml` on every push/PR: debug + release APKs, unit tests, Android Lint, artifacts kept 14 days; no release signing yet | signing alias `praline`, key + password only in `signing-backup/`, never in git or memory |
 
 Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, CameraX for the scanner, Jetpack DataStore for prefs, Room if the cookbook outgrows one JSON file.
 
@@ -59,7 +59,7 @@ Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, Camera
 - Names: screens `XxxScreen`, logic objects nouns (`Store`, `Sync`, `Timers`).
 - Test code must not call stdlib helpers main code doesn't use (`testShrunk` breaks).
 - Look: cream paper, wobbly ink outlines, colourful offset shadows, D&D tone; no instructional hint text.
-- Every version: versionCode +1, APK `Praline-x.y.apk`, screenshots folder, source tarball in `/mnt/project-files/praline/`.
+- Every version: versionCode +1, APK `Praline-x.y.apk`, screenshots folder, source pushed to this repository through a PR (a source tarball in `/mnt/project-files/praline/` too, until builds run on GitHub Actions).
 
 ## 5. Features (1.2)
 
@@ -105,7 +105,7 @@ Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, Camera
 
 ## 8. Refactor log
 
-A local git history starts at 1.1 (inside the source tarball). **No module has been refactored yet.** Snapshot 2026-10-17 (1.2); "changed" = lines changed 1.1→1.2.
+Git history starts at 1.1. **No module has been refactored yet.** Snapshot 2026-10-17 (1.2); "changed" = lines changed 1.1→1.2.
 
 | Module | Lines | Changed 1.1→1.2 | Edited in | Last refactored | Recommendation |
 |---|---|---|---|---|---|
@@ -127,14 +127,14 @@ Thresholds: recommend a refactor when a module passes **600 lines**, has been ed
 
 | # | Risk | Where | Severity | Fix before wider release |
 |---|---|---|---|---|
-| S1 | **Sync is unencrypted**: the 8-character pair key and the whole cookbook (recipes, photos, chef names) travel in plain JSON over Wi-Fi; anyone on the same network can read them, and with the key, pull or push changes | Sync.kt | **Medium** (fine at home; not on shared Wi-Fi) | Next version (Yaya, 2026-10-17): sync only runs on the saved home Wi-Fi, recognised by its network name (location permission asked once, only to read the Wi-Fi name), changed in Settings → "Home dungeon access". Before a wider release, also encrypt (TLS or a cipher keyed from the pairing secret) and replace sending the key with a challenge-response |
-| S2 | Pair key is 8 chars from 31 symbols (~40 bits) and the server has no attempt limit | Sync.newKey, server hello | Low | Rate-limit failed hellos; longer key in the QR |
+| S1 | ~~Sync is unencrypted~~ | Sync.kt, SecureLink.kt | Fixed in 1.3 | Home Wi-Fi only (1.2); 1.3: fresh ECDH per sync, the pair code is never sent, both phones prove the 256-bit pairing secret, AES-256-GCM per direction with chunk counters. Residual: the short pair code is used once while pairing, so an attacker on the Wi-Fi at that exact moment who impersonates a phone could test guesses offline; a PAKE (e.g. SPAKE2) would close it before a wider release |
+| S2 | ~~No attempt limit on the pair key~~ | Sync server | Fixed in 1.3 | 5 wrong codes or secrets in 10 minutes lock pairing and sync for 10 minutes. Key length unchanged (8 chars, ~40 bits) |
 | S3 | Signing key backup and password sit together in the project folder | signing-backup/ | Low (private project) | Keep, but never copy into git; use a password manager for a public release |
 | S4 | Personal naming (`yaya`): full inventory in section 12 | manifest, all sources | Low | Rename before the first public release (section 12) |
 | S5 | `allowBackup="true"`: cookbook, photos, chef profiles go to Android/Google backups | manifest | Low | `dataExtractionRules`, or false |
 | S6 | Photos are stored with EXIF (location, phone model) and shared to the other phone as-is | Photos, Share | Low | Strip EXIF on import |
 | S7 | `USE_EXACT_ALARM` needs store justification (Play allows it for alarm/timer apps) | manifest | Store policy | Switch to `SCHEDULE_EXACT_ALARM` + request flow if refused |
-| S8 | Source has only a local git history (in the tarball), no remote | — | Info | Private `praline-app` repo |
+| S8 | ~~Source not in version control~~ | — | Done | Private `praline-app` repo (2026-10-18) |
 | S9 | **Recipe files are untrusted input** (1.2): anyone can send a `.praline` file | RecipeFiles.read/add | Low | Done: zip names checked (flat, safe characters, .jpg/.mp4 only), caps of 80 MB per entry, 200 MB total, 600 entries, 4 MB JSON, 200 recipes; pictures renamed on import; nothing added without the chef's tap. Later: strip EXIF, check images decode before keeping them |
 | S10 | **Location permission** (1.2), asked only to read the Wi-Fi name | HomeWifi | Low (privacy) | No location is read or stored, only the SSID; explained before asking. Store listing must say why |
 | S11 | Mission recipe ids are fixed (`mission-<world>-N`), so a crafted sync payload could overwrite them | Sync merge | Low (needs the pair key) | Covered by S1's fix |

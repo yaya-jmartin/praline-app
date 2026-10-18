@@ -1,6 +1,6 @@
 # Praliné, explained lightly
 
-This file explains, without jargon, every building block Praliné uses: what it is, what it does for the app, and why it was chosen over other options. It is updated whenever a building block is added, removed or swapped. It belongs at the root of the Praliné source, next to COMMAND_FILE_CLAUDE.md.
+This file explains, without jargon, every building block Praliné uses: what it is, what it does for the app, and why it was chosen over other options. It is updated whenever a building block is added, removed or swapped.
 
 **A quick picture first.** An Android app is code, plus pictures, sounds and fonts, all packed into one installable file, the **APK**. Building it is like a kitchen: ingredients (code and libraries), a recipe book (the build script), appliances (the tools that cook and pack) and a taste test (automated tests).
 
@@ -20,7 +20,7 @@ One constraint shapes most of the choices below. The computer Claude builds on c
 | **Phone storage for settings** (SharedPreferences) | A small notebook the app keeps | Remembers the home tab, sorting and other small choices | Built in. Jetpack DataStore replaces it later |
 | **The phone's photo tools** (BitmapFactory, a memory cache) | Built-in picture loading | Opens photos at the size the screen needs, keeps recent ones ready, applies the dungeon-light filters | The image library Coil is on Google's servers, so the proven manual technique is used instead: open a smaller copy, cache a limited amount. The strict rules are in COMMAND_FILE_CLAUDE.md |
 | **The phone's camera** (old camera API, plus the system camera app) | Camera access | The live view for QR scanning, and the system camera for recipe photos and clips | The old API is built in. CameraX (modern, sharper focus) is on Google's servers |
-| **Wi-Fi sync** (sockets + local network discovery) | Two phones talking directly on your home network | Pairing and keeping one shared cookbook | No server, no account, no cost, and your data never leaves home. Since 1.2 it only syncs on your saved home Wi-Fi. Encryption comes before any wider release |
+| **Wi-Fi sync** (sockets + local network discovery) | Two phones talking directly on your home network | Pairing and keeping one shared cookbook | No server, no account, no cost, and your data never leaves home. Since 1.2 it only syncs on your saved home Wi-Fi; since 1.3 everything is encrypted (see below) |
 | **Pistachio hand-off** (Android "set a timer" message) | A standard Android message to timer apps | Sends recipe timers to Pistachio | Uses Android's own standard instead of a private link between the apps. If the hand-off is off, Praliné runs its own timers |
 
 ## New in 1.2 (no new libraries; all built from what the phone already has)
@@ -51,6 +51,14 @@ Same chain as Pistachio:
 |---|---|---|
 | **JUnit** | The basic tester: "do this, check that" | The standard |
 | **Robolectric** | Pretends to be an Android phone on a computer, tests screens and takes the screenshots used to check the design | The only way to test Android behaviour here without Google's emulator |
+
+## New in 1.3 (prepared, not built yet)
+
+| Building block | What it is | What it does for Praliné | Why this one |
+|---|---|---|---|
+| **Encrypted sync** (Java's built-in crypto: elliptic-curve key exchange, AES-256-GCM) | A private line between your two phones | Every sync gets fresh keys, the pairing code is never sent, and anything changed in transit is refused | Built into every Android phone, nothing to add. TLS (the web's padlock) needs certificates, which makes no sense for two phones at home |
+| **GitHub Actions** | GitHub's computers building the app on every change | Builds the APK with Google's official tools, runs all the tests and Android Lint (a checker for common Android mistakes), and keeps the results for 14 days | It can reach Google's servers, so it unlocks the upgrades below. Nothing is published without your OK |
+| **Android Gradle Plugin** (the `agp` folder) | Google's official recipe book for building Android apps | Replaces the hand-made build chain on GitHub | The standard everyone uses; needed for Coil, CameraX and the other upgrades |
 
 ## Coming later (approved order, each step checked on your phones)
 
