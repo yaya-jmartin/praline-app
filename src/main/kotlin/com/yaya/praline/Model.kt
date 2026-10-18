@@ -219,6 +219,10 @@ object Store {
     /** Party missions: world id -> when it started. */
     val missions = HashMap<String, Long>()
     var pairKey = ""
+    /** The long secret the two phones share since pairing (base64); the pair code is only used to set it up. */
+    var pairSecret = ""
+    /** True once the other phone has synced with [pairSecret], so the short pair code is no longer accepted. */
+    var secretConfirmed = false
     var peerHost = ""
     var peerPort = 0
     /** This phone's own My Variant specials, per recipe id. Never synced as part of the cookbook. */
@@ -270,7 +274,7 @@ object Store {
         Missions.merge(o.optJSONObject("missions"))
         val t = o.optJSONObject("tomb") ?: JSONObject()
         val it2 = t.keys(); while (it2.hasNext()) { val k = it2.next(); tombstones[k] = t.getLong(k) }
-        pairKey = o.optString("pairKey"); peerHost = o.optString("peerHost"); peerPort = o.optInt("peerPort")
+        pairKey = o.optString("pairKey"); pairSecret = o.optString("pairSecret"); secretConfirmed = o.optBoolean("secretOk"); peerHost = o.optString("peerHost"); peerPort = o.optInt("peerPort")
         val m = o.optJSONObject("mine") ?: JSONObject()
         val it3 = m.keys()
         while (it3.hasNext()) {
@@ -294,7 +298,7 @@ object Store {
         val p = JSONObject(); for ((k, v) in plan) p.put(k, v); o.put("plan", p); o.put("planUpdated", planUpdated)
         val t = JSONObject(); for ((k, v) in tombstones) t.put(k, v); o.put("tomb", t)
         o.put("missions", Missions.toJson())
-        o.put("pairKey", pairKey); o.put("peerHost", peerHost); o.put("peerPort", peerPort)
+        o.put("pairKey", pairKey); o.put("pairSecret", pairSecret); o.put("secretOk", secretConfirmed); o.put("peerHost", peerHost); o.put("peerPort", peerPort)
         val m = JSONObject()
         for ((k, l) in mine) { val arr = JSONArray(); for (v in l) arr.put(v.toJson()); if (arr.length() > 0) m.put(k, arr) }
         o.put("mine", m)
@@ -361,7 +365,7 @@ object Store {
         save(c)
     }
 
-    fun reset() { loaded = false; clearAll(); me = Chef(); pairKey = ""; peerHost = ""; peerPort = 0; planUpdated = 0L }
+    fun reset() { loaded = false; clearAll(); me = Chef(); pairKey = ""; pairSecret = ""; secretConfirmed = false; peerHost = ""; peerPort = 0; planUpdated = 0L }
 }
 
 /** Quantities: parsing typed lines, scaling, and pretty fractions. */

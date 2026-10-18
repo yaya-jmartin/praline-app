@@ -377,7 +377,7 @@ class V11Test {
         assertEquals(9, Portraits.COUNT)
         assertTrue(Portraits.unlocked(3, 1)); assertFalse(Portraits.unlocked(4, 2)); assertTrue(Portraits.unlocked(4, 3))
         assertFalse(Portraits.unlocked(8, 15)); assertTrue(Portraits.unlocked(8, 16))
-        for (i in 0 until Portraits.COUNT) assertTrue("portrait $i", java.io.File("app/res/drawable-nodpi/chef_$i.jpg").length() > 50_000)
+        for (i in 0 until Portraits.COUNT) assertTrue("portrait $i", repoFile("app/res/drawable-nodpi/chef_$i.jpg").length() > 50_000)
     }
 
     @Test fun cameraPreviewIsNotStretched() {

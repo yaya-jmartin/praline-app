@@ -161,7 +161,7 @@ class PairScreen(a: MainActivity) : Screen(a) {
         Sync.syncWith(a, code.host, code.port, code.key) { err ->
             busy = false
             if (err == null) mode = 3
-            else error = if (err == Sync.TOO_OLD) err else "Couldn't reach the other phone. Are both on the same Wi-Fi with Praliné open on Show my code?"
+            else error = if (err == Sync.TOO_OLD || err == Sync.TOO_MANY || err == Sync.NOT_YOURS) err else if (err == Sync.NOT_PAIRED) "That code didn't match. Check the code on the other phone and try again." else "Couldn't reach the other phone. Are both on the same Wi-Fi with Praliné open on Show my code?"
             rebuild()
         }
     }
