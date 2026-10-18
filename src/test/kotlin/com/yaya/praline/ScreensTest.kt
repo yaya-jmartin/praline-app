@@ -65,7 +65,7 @@ class ScreensTest {
 
     private fun photo(name: String): String {
         val n = Store.newPhotoName()
-        java.nio.file.Files.copy(File("src/test/resources/photos/$name.jpg").toPath(), Store.photoFile(c, n).toPath())
+        java.nio.file.Files.copy(repoFile("src/test/resources/photos/$name.jpg").toPath(), Store.photoFile(c, n).toPath())
         return n
     }
 
@@ -237,7 +237,7 @@ class ScreensTest {
     @Test fun photoDarkroomKeepsBoth() {
         val a = launch()
         val shotFile = File(a.cacheDir, "shots/test.jpg"); shotFile.parentFile!!.mkdirs()
-        java.nio.file.Files.copy(File("src/test/resources/photos/cookies.jpg").toPath(), shotFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        java.nio.file.Files.copy(repoFile("src/test/resources/photos/cookies.jpg").toPath(), shotFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         var got: Array<String>? = null
         val p = PhotoScreen(a, shotFile, "torch", 0.8f) { o, f, k, s -> got = arrayOf(o, f, k, s.toString()) }
         a.push(p); idle(600)

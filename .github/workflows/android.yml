@@ -44,5 +44,6 @@ jobs:
             agp/app/build/reports/
             agp/app/build/test-results/
             build/shots/
+            agp/app/build/shots/
           if-no-files-found: warn
           retention-days: 14

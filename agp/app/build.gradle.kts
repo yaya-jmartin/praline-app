@@ -59,7 +59,7 @@ android {
         unitTests {
             isIncludeAndroidResources = true
             all {
-                it.workingDir = repo
+                // tests run from agp/app, where Robolectric finds AGP's resource APK; repoFile() reaches the repo files
                 it.maxHeapSize = "3g"
                 it.testLogging { events("failed"); exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
             }
