@@ -4,7 +4,7 @@ Strict working rules for Claude on this app. Read this file in full before answe
 If this file and a chat message disagree, Yaya's latest message wins and this file gets updated in the same change.
 Repository: `yaya-jmartin/praline-app` (private). This file lives at its root.
 
-App: **Praliné**, package `com.yaya.praline`, current version **1.2** (versionCode 3); **1.3** (versionCode 4) prepared on branch `claude/praline-1.3-prep`, PR #11, waiting for Yaya's go. Source: this repository (history from 1.1 on).
+App: **Praliné**, package `com.yaya.praline`, current version **1.3** (versionCode 4, built 2026-10-18 from PR #11: encrypted sync, wrong-code limit, GitHub Actions build). Source: this repository (history from 1.1 on).
 
 ---
 

@@ -52,7 +52,7 @@ Same chain as Pistachio:
 | **JUnit** | The basic tester: "do this, check that" | The standard |
 | **Robolectric** | Pretends to be an Android phone on a computer, tests screens and takes the screenshots used to check the design | The only way to test Android behaviour here without Google's emulator |
 
-## New in 1.3 (prepared, not built yet)
+## New in 1.3 (built 2026-10-18)
 
 | Building block | What it is | What it does for Praliné | Why this one |
 |---|---|---|---|
