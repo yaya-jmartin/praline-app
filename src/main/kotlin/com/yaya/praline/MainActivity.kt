@@ -196,7 +196,7 @@ class MainActivity : Activity() {
         handler.removeCallbacks(ticker)
         handler.post(ticker)
         Timers.restore(this)
-        if (Store.pairKey.isNotEmpty()) Sync.autoSync(this) { err -> if (err == Sync.TOO_OLD) toast(err) }
+        if (Store.pairKey.isNotEmpty()) Sync.autoSync(this) { err -> if (err == Sync.TOO_OLD || err == Sync.TOO_MANY || err == Sync.NOT_YOURS) toast(err) }
     }
 
     override fun onPause() { super.onPause(); handler.removeCallbacks(ticker); Resume.save(this) }

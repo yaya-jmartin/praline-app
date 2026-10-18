@@ -27,10 +27,13 @@ import java.util.UUID
 object Sync {
     const val PORT = 47820
     const val TYPE = "_praline._tcp."
-    /** Praliné 1.1 speaks version 2: shared-recipe changes, and photos and clips sent as raw bytes. */
-    const val VERSION = 2
+    /** Praliné 1.3 speaks version 3: everything encrypted, the pair code never sent (see [SecureLink]). */
+    const val VERSION = 3
     const val NOT_HOME = "Not on your home Wi-Fi, so nothing was sent."
-    const val TOO_OLD = "Update Praliné on the other phone to 1.1 so the two can sync again."
+    const val TOO_OLD = "Update Praliné on the other phone to 1.3 so the two can sync again."
+    const val NOT_PAIRED = "not paired"
+    const val TOO_MANY = "Too many wrong codes. Wait 10 minutes, then pair again."
+    const val NOT_YOURS = "The other phone couldn't prove it's yours, so nothing was sent."
     /** Things to tell the chef after a sync ("Yaya accepted your change to Tatin"). */
     val news: MutableList<String> = ArrayList()
 
@@ -38,7 +41,6 @@ object Sync {
     fun payload(c: Context?, includePhotos: Boolean = true): JSONObject {
         val o = JSONObject()
         o.put("v", VERSION)
-        o.put("key", Store.pairKey)
         o.put("me", Store.me.toJson())
         val r = JSONArray(); for (x in Store.recipes) r.put(x.toJson()); o.put("recipes", r)
         val t = JSONObject(); for ((k, v) in Store.tombstones) t.put(k, v); o.put("tomb", t)
@@ -210,20 +212,74 @@ object Sync {
         unregister(c)
     }
 
+    // wrong codes or secrets: after 5 in 10 minutes, nobody pairs or syncs for 10 minutes
+    private val failures = ArrayList<Long>()
+    private const val FAIL_MAX = 5
+    private const val FAIL_WINDOW = 10 * 60_000L
+
+    fun lockedOut(now: Long = System.currentTimeMillis()): Boolean = synchronized(failures) {
+        failures.removeAll { now - it > FAIL_WINDOW }
+        failures.size >= FAIL_MAX
+    }
+    private fun failed() { synchronized(failures) { failures.add(System.currentTimeMillis()) } }
+    fun clearFailures() { synchronized(failures) { failures.clear() } }
+
+    private fun b64(b: ByteArray) = Base64.encodeToString(b, Base64.NO_WRAP)
+    private fun unb64(s: String): ByteArray = Base64.decode(s, Base64.NO_WRAP)
+
+    /** The secrets a phone asking to sync may prove: the pairing secret, or a pair code while pairing. */
+    private class Candidate(val auth: ByteArray, val code: String)
+
+    private fun candidates(mode: String): List<Candidate> {
+        val out = ArrayList<Candidate>()
+        if (mode == "secret") { if (Store.pairSecret.isNotEmpty()) out.add(Candidate(unb64(Store.pairSecret), "")) }
+        else {
+            if (pendingKey.isNotEmpty()) out.add(Candidate(SecureLink.codeSecret(pendingKey), pendingKey))
+            // the pair code of two phones that paired on 1.2, until they have used the long secret once
+            if (Store.pairKey.isNotEmpty() && !Store.secretConfirmed) out.add(Candidate(SecureLink.codeSecret(Store.pairKey), Store.pairKey))
+        }
+        return out
+    }
+
     private fun serve(c: Context, s: Socket) {
         try {
             s.soTimeout = 20_000
-            val inp = DataInputStream(s.getInputStream().buffered()); val out = DataOutputStream(s.getOutputStream().buffered())
-            val hello = recv(inp)
-            if (!HomeWifi.here(c)) { send(out, JSONObject().put("error", NOT_HOME)); return }
-            val key = hello.optString("key")
+            val bin = s.getInputStream().buffered(); val bout = s.getOutputStream().buffered()
+            val pin = DataInputStream(bin); val pout = DataOutputStream(bout)
+            val hello = recv(pin)
+            if (!HomeWifi.here(c)) { send(pout, JSONObject().put("error", NOT_HOME)); return }
+            if (hello.optInt("v", 1) < VERSION) { send(pout, JSONObject().put("error", TOO_OLD).put("v", VERSION)); return }
+            if (lockedOut()) { send(pout, JSONObject().put("error", TOO_MANY)); return }
+            val mode = hello.optString("mode")
+            val theirPub = unb64(hello.optString("epk")); val theirNonce = unb64(hello.optString("nonce"))
+            val kp = SecureLink.newKeyPair(); val nonce = SecureLink.random(32)
+            send(pout, JSONObject().put("v", VERSION).put("epk", b64(SecureLink.publicBytes(kp))).put("nonce", b64(nonce)))
+            val shared = SecureLink.agree(kp, theirPub)
+            val tr = SecureLink.transcript(theirPub, SecureLink.publicBytes(kp), theirNonce, nonce)
+            val proof = unb64(recv(pin).optString("proof"))
+            var keys: SecureLink.Keys? = null; var code = ""
             synchronized(lock) {
-                val ok = key.isNotEmpty() && (key == Store.pairKey || key == pendingKey)
-                if (!ok) { send(out, JSONObject().put("error", "not paired")); return }
-                if (hello.optInt("v", 1) < VERSION) { send(out, JSONObject().put("error", TOO_OLD).put("v", VERSION)); return }
-                if (key == pendingKey) { Store.pairKey = key; pendingKey = "" }
+                for (cand in candidates(mode)) {
+                    val k = SecureLink.Keys(cand.auth, shared, tr)
+                    if (SecureLink.same(k.clientProof, proof)) { keys = k; code = cand.code; break }
+                }
+            }
+            val k = keys
+            if (k == null) { failed(); send(pout, JSONObject().put("error", NOT_PAIRED)); return }
+            send(pout, JSONObject().put("proof", b64(k.serverProof)))
+            synchronized(lock) {
+                if (mode == "secret") Store.secretConfirmed = true
+                else {
+                    if (code == pendingKey) { Store.pairKey = code; pendingKey = "" }
+                    Store.pairSecret = b64(k.pairing); Store.secretConfirmed = false
+                }
+                Store.save(c)
+            }
+            val (inp, out) = SecureLink.wrap(bin, bout, k.toServer, k.toClient)
+            val state = recv(inp)
+            synchronized(lock) {
                 Store.peerHost = s.inetAddress.hostAddress ?: ""
-                merge(hello)
+                merge(state)
                 Store.save(c)
                 val reply = payload(c)
                 val want = JSONArray(); for (n in neededPhotos(c)) want.put(n)
@@ -257,16 +313,39 @@ object Sync {
         try {
             s.connect(InetSocketAddress(host, port), 4000)
             s.soTimeout = 20_000
-            val inp = DataInputStream(s.getInputStream().buffered()); val out = DataOutputStream(s.getOutputStream().buffered())
+            val bin = s.getInputStream().buffered(); val bout = s.getOutputStream().buffered()
+            val pin = DataInputStream(bin); val pout = DataOutputStream(bout)
+            // the long secret once paired; the pair code only while pairing (or moving two 1.2 phones over)
+            val auth: ByteArray; val mode: String
+            synchronized(lock) {
+                if (Store.pairSecret.isNotEmpty() && key == Store.pairKey) { auth = unb64(Store.pairSecret); mode = "secret" }
+                else { auth = SecureLink.codeSecret(key); mode = "code" }
+            }
+            val kp = SecureLink.newKeyPair(); val nonce = SecureLink.random(32)
+            send(pout, JSONObject().put("v", VERSION).put("mode", mode).put("epk", b64(SecureLink.publicBytes(kp))).put("nonce", b64(nonce)))
+            val hi = recv(pin)
+            if (hi.has("error")) throw IllegalStateException(hi.getString("error"))
+            if (hi.optInt("v", 1) < VERSION) throw IllegalStateException(TOO_OLD)
+            val theirPub = unb64(hi.optString("epk"))
+            val tr = SecureLink.transcript(SecureLink.publicBytes(kp), theirPub, nonce, unb64(hi.optString("nonce")))
+            val k = SecureLink.Keys(auth, SecureLink.agree(kp, theirPub), tr)
+            send(pout, JSONObject().put("proof", b64(k.clientProof)))
+            val ok = recv(pin)
+            if (ok.has("error")) throw IllegalStateException(ok.getString("error"))
+            if (!SecureLink.same(unb64(ok.optString("proof")), k.serverProof)) throw IllegalStateException(NOT_YOURS)
+            val (inp, out) = SecureLink.wrap(bin, bout, k.toClient, k.toServer)
             val hello: JSONObject
-            synchronized(lock) { hello = payload(c); hello.put("key", key) }
+            synchronized(lock) {
+                Store.pairKey = key
+                if (mode == "code") { Store.pairSecret = b64(k.pairing); Store.secretConfirmed = false }
+                hello = payload(c)
+            }
             send(out, hello)
             val state = recv(inp)
             if (state.has("error")) throw IllegalStateException(state.getString("error"))
-            if (state.optInt("v", 1) < VERSION) throw IllegalStateException(TOO_OLD)
             val second = JSONObject()
             synchronized(lock) {
-                Store.pairKey = key; Store.peerHost = host; Store.peerPort = port
+                Store.peerHost = host; Store.peerPort = port
                 merge(state)
                 Store.save(c)
                 val want = JSONArray(); for (n in neededPhotos(c)) want.put(n)
@@ -442,7 +521,7 @@ object Sync {
         return Code(myIp.substring(0, dot + 1) + last, port, key.toString())
     }
 
-    fun unpair(c: Context) { Store.pairKey = ""; Store.peer = null; Store.peerHost = ""; Store.peerPort = 0; pendingKey = ""; Store.save(c) }
+    fun unpair(c: Context) { Store.pairKey = ""; Store.pairSecret = ""; Store.secretConfirmed = false; Store.peer = null; Store.peerHost = ""; Store.peerPort = 0; pendingKey = ""; Store.save(c) }
 
     fun qrBitmap(text: String, size: Int): Bitmap {
         val m = com.google.zxing.qrcode.QRCodeWriter().encode(text, com.google.zxing.BarcodeFormat.QR_CODE, size, size)
