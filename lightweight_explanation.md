@@ -1,6 +1,6 @@
 # Praliné, explained lightly
 
-This file explains, without jargon, every building block Praliné uses: what it is, what it does for the app, and why it was chosen over other options. It is updated whenever a building block is added, removed or swapped. It belongs at the root of the Praliné source, next to COMMAND_FILE_CLAUDE.md.
+This file explains, without jargon, every building block Praliné uses: what it is, what it does for the app, and why it was chosen over other options. It is updated whenever a building block is added, removed or swapped.
 
 **A quick picture first.** An Android app is code, plus pictures, sounds and fonts, all packed into one installable file, the **APK**. Building it is like a kitchen: ingredients (code and libraries), a recipe book (the build script), appliances (the tools that cook and pack) and a taste test (automated tests).
 

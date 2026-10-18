@@ -2,9 +2,9 @@
 
 Strict working rules for Claude on this app. Read this file in full before answering, planning or changing anything.
 If this file and a chat message disagree, Yaya's latest message wins and this file gets updated in the same change.
-This file belongs at the root of the Praliné source (`praline/COMMAND_FILE_CLAUDE.md`); the next source tarball carries it there.
+Repository: `yaya-jmartin/praline-app` (private). This file lives at its root.
 
-App: **Praliné**, package `com.yaya.praline`, current version **1.2** (versionCode 3). Source: `/mnt/project-files/praline/praline-1.2-source.tar.gz` (a local git history is inside the tarball; no GitHub repository yet).
+App: **Praliné**, package `com.yaya.praline`, current version **1.2** (versionCode 3). Source: this repository (history from 1.1 on).
 
 ---
 
@@ -59,7 +59,7 @@ Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, Camera
 - Names: screens `XxxScreen`, logic objects nouns (`Store`, `Sync`, `Timers`).
 - Test code must not call stdlib helpers main code doesn't use (`testShrunk` breaks).
 - Look: cream paper, wobbly ink outlines, colourful offset shadows, D&D tone; no instructional hint text.
-- Every version: versionCode +1, APK `Praline-x.y.apk`, screenshots folder, source tarball in `/mnt/project-files/praline/`.
+- Every version: versionCode +1, APK `Praline-x.y.apk`, screenshots folder, source pushed to this repository through a PR (a source tarball in `/mnt/project-files/praline/` too, until builds run on GitHub Actions).
 
 ## 5. Features (1.2)
 
@@ -105,7 +105,7 @@ Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, Camera
 
 ## 8. Refactor log
 
-A local git history starts at 1.1 (inside the source tarball). **No module has been refactored yet.** Snapshot 2026-10-17 (1.2); "changed" = lines changed 1.1→1.2.
+Git history starts at 1.1. **No module has been refactored yet.** Snapshot 2026-10-17 (1.2); "changed" = lines changed 1.1→1.2.
 
 | Module | Lines | Changed 1.1→1.2 | Edited in | Last refactored | Recommendation |
 |---|---|---|---|---|---|
@@ -134,7 +134,7 @@ Thresholds: recommend a refactor when a module passes **600 lines**, has been ed
 | S5 | `allowBackup="true"`: cookbook, photos, chef profiles go to Android/Google backups | manifest | Low | `dataExtractionRules`, or false |
 | S6 | Photos are stored with EXIF (location, phone model) and shared to the other phone as-is | Photos, Share | Low | Strip EXIF on import |
 | S7 | `USE_EXACT_ALARM` needs store justification (Play allows it for alarm/timer apps) | manifest | Store policy | Switch to `SCHEDULE_EXACT_ALARM` + request flow if refused |
-| S8 | Source has only a local git history (in the tarball), no remote | — | Info | Private `praline-app` repo |
+| S8 | ~~Source not in version control~~ | — | Done | Private `praline-app` repo (2026-10-18) |
 | S9 | **Recipe files are untrusted input** (1.2): anyone can send a `.praline` file | RecipeFiles.read/add | Low | Done: zip names checked (flat, safe characters, .jpg/.mp4 only), caps of 80 MB per entry, 200 MB total, 600 entries, 4 MB JSON, 200 recipes; pictures renamed on import; nothing added without the chef's tap. Later: strip EXIF, check images decode before keeping them |
 | S10 | **Location permission** (1.2), asked only to read the Wi-Fi name | HomeWifi | Low (privacy) | No location is read or stored, only the SSID; explained before asking. Store listing must say why |
 | S11 | Mission recipe ids are fixed (`mission-<world>-N`), so a crafted sync payload could overwrite them | Sync merge | Low (needs the pair key) | Covered by S1's fix |
