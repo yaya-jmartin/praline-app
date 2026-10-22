@@ -85,7 +85,7 @@ class ScreensTest {
         val cook = LogicTest.sample("Cookies", true, "rogue", "B", 1, 25); cook.photo = photo("cookies")
         val soup = LogicTest.sample("Soupe à l'oignon", false, "cleric", "C", 2, 60)
         val toast = LogicTest.sample("Toast", false, "monk", "D", 1, 5)
-        for (r in arrayOf(tatin, chili, tira, agr, cook, soup, toast)) Store.upsert(c, r)
+        for (r in arrayOf(tatin, chili, tira, agr, cook, soup, toast)) { r.noEquipment = true; Store.upsert(c, r) }
         for (k in 0 until 6) Store.cook(c, tatin, "Classic", System.currentTimeMillis() - k * 86_400_000L)
         Store.cook(c, chili, "Spicier"); Store.cook(c, tira, "Classic"); Store.cook(c, agr, "Classic")
         val peer = Chef(); peer.name = "Sam"; peer.portrait = 2
@@ -134,8 +134,9 @@ class ScreensTest {
         s.servings = 6; s.rebuild(); idle()
         assertTrue(has(root, "300 g")); assertTrue(has(root, "1½ cup")); assertTrue(has(root, "4½"))
         tap(root, "flour")
-        // a step's timer belongs to the quest: its chip opens the quest at that step
-        tap(root, "10:00 · Bake")
+        // timers belong to the quest (1.4): no timer chips on the recipe page
+        assertFalse(hasPart(root, "10:00 · Bake"))
+        s.startQuest(1); idle(600)
         assertTrue(a.top() is QuestScreen)
         assertEquals(1, (a.top() as QuestScreen).current)
         assertEquals(Timers.IDLE, Timers.state(a, Timers.idFor(tatin.id, 0, 1)))
@@ -202,7 +203,18 @@ class ScreensTest {
         longShot(a, "12-editor-steps")
         tap(root, "Add to the grimoire")
         idle(600)
+        // 1.4: no saving without equipment, unless "No equipment needed" is ticked
+        assertTrue(has(root, "Not ready yet"))
+        assertTrue(Store.recipes.none { it.title == "Crêpes" })
+        shot(root, "12b-editor-not-ready")
+        tap(root, "Keep editing"); idle()
+        assertTrue(has(root, "Equipment · 0"))
+        byDesc(root, "no equipment").performClick(); idle()
+        assertTrue(has(root, "Equipment · none"))
+        tap(root, "Add to the grimoire")
+        idle(600)
         val saved = Store.recipes.first { it.title == "Crêpes" }
+        assertTrue(saved.noEquipment)
         assertTrue(saved.dessert); assertEquals("wizard", saved.cls); assertEquals("A", saved.tier)
         assertEquals(2, saved.variants[0].ingredients.size)
         assertEquals(0.5, saved.variants[0].ingredients[1].qty!!, 1e-9)
@@ -307,11 +319,18 @@ class ScreensTest {
         tap(root, "45 min")
         val mon = Days.monday(0)
         tap(root, "Roll the empty days")
-        for (i in 0..6) { val d = mon.clone() as Calendar; d.add(Calendar.DAY_OF_MONTH, i); assertNotNull(b.entry(Days.key(d))) }
-        val d0 = Days.key(mon); val d1c = mon.clone() as Calendar; d1c.add(Calendar.DAY_OF_MONTH, 1); val d1 = Days.key(d1c)
+        // days before today stay as they were (1.4)
+        val today = Days.key(Calendar.getInstance())
+        for (i in 0..6) { val d = mon.clone() as Calendar; d.add(Calendar.DAY_OF_MONTH, i); val k = Days.key(d); if (k >= today) assertNotNull(b.entry(k)) else assertNull(b.entry(k)) }
+        val tc = Calendar.getInstance(); tc.add(Calendar.DAY_OF_MONTH, 1)
+        val d0 = today; val d1 = Days.key(tc)
+        Store.setPlan(a, d1, tatin.id + "|0")
         val x = Store.plan[d0]; val y = Store.plan[d1]
         b.move(d0, d1); idle()
         assertEquals(x, Store.plan[d1]); assertEquals(y, Store.plan[d0])
+        val past = Calendar.getInstance(); past.add(Calendar.DAY_OF_MONTH, -1); val pk = Days.key(past)
+        b.move(d0, pk); idle()
+        assertNull(Store.plan[pk]); assertEquals(y, Store.plan[d0])
         Store.setPlan(a, d0, null); b.rebuild(); idle()
         assertTrue(has(root, "+ pick a recipe or roll"))
         longShot(a, "20-board")
@@ -339,7 +358,7 @@ class ScreensTest {
         a.push(e); idle(600)
         val root = a.window.decorView
         val page = all(root).filterIsInstance<ScrollView>().last { it.isShown }
-        tap(root, "Equipment · 0")
+        tap(root, "Equipment · none")
         // the tab switches in place: same page, nothing rebuilt
         assertTrue(page === all(root).filterIsInstance<ScrollView>().last { it.isShown })
         byDesc(root, "equipment whisk").performClick(); idle()
@@ -617,7 +636,7 @@ class ScreensTest {
         val e = EditorScreen(a, tatin, 0)
         a.push(e); idle(600)
         val root = a.window.decorView
-        tap(root, "Equipment · 0")
+        tap(root, "Equipment · none")
         byDesc(root, "equipment mixbowl").performClick(); idle()
         byDesc(root, "equipment kenwood").performClick(); idle()
         // a selected chip asks how many
@@ -660,5 +679,80 @@ class ScreensTest {
         a.push(SettingsScreen(a)); idle(600)
         assertTrue(has(root, "Open a recipe file") || hasPart(root, "recipe file"))
         longShot(a, "51-settings-home-files")
+    }
+
+    // ---- 1.4 ---------------------------------------------------------------------------
+    @Test fun portraitPickShowsWhichOne() {
+        val a = launch()
+        a.push(ProfileScreen(a, Store.me, false)); idle(600)
+        val root = a.window.decorView
+        byDesc(root, "edit chef").performClick(); idle()
+        val meds = all(root).filterIsInstance<Medallion>().filter { it.parent?.let { p -> (p as View).contentDescription?.startsWith("portrait") } == true }
+        assertEquals(1, meds.count { it.picked })
+        byDesc(root, "portrait 2").performClick(); idle()
+        assertTrue(meds[2].picked); assertEquals(1, meds.count { it.picked })
+        shot(root, "60-portrait-picked")
+    }
+
+    @Test fun questCanBeAbandoned() {
+        val a = launch()
+        val before = Store.me.history.size
+        a.push(RecipeScreen(a, tatin)); idle(600)
+        a.push(QuestScreen(a, tatin, 0, 1.0, 1)); idle(600)
+        val root = a.window.decorView
+        val id = Timers.idFor(tatin.id, 0, 1)
+        Timers.start(a, id, 600_000L, "Bake")
+        byDesc(root, "Abandon the quest").performClick(); idle()
+        assertTrue(has(root, "Abandon the quest?"))
+        assertTrue(hasPart(root, "running timer stops"))
+        shot(root, "61-quest-abandon")
+        tap(root, "Abandon"); idle(600)
+        assertFalse(a.top() is QuestScreen)
+        assertEquals(Timers.IDLE, Timers.state(a, id))
+        assertEquals(before, Store.me.history.size)
+    }
+
+    @Test fun recipePageShowsToTasteUnderTheName() {
+        tatin.variants[0].ingredients.add(Ingredient(null, "", "salt")); Store.upsert(c, tatin)
+        val a = launch()
+        a.push(RecipeScreen(a, tatin)); idle(600)
+        val root = a.window.decorView
+        val salt = tv(root, "salt")
+        val taste = byDesc(root, "to taste")
+        assertTrue((salt.parent as View) === (taste.parent as View))
+        longShot(a, "62-recipe-to-taste")
+    }
+
+    @Test fun pastDaysAreLockedAndShoppingListAddsUp() {
+        val a = launch()
+        val today = Calendar.getInstance()
+        Store.setPlan(a, Days.key(today), tatin.id + "|0")
+        val b = BoardScreen(a)
+        a.push(b); idle(600)
+        val root = a.window.decorView
+        if (Days.key(Days.monday(0)) < Days.key(today)) {
+            val y = Calendar.getInstance(); y.add(Calendar.DAY_OF_MONTH, -1)
+            assertNotNull(byDesc(root, "past day " + Days.key(y)))
+        }
+        tap(root, "Shopping list"); idle()
+        assertTrue(has(root, "Shopping list"))
+        assertTrue(hasPart(root, "Tarte Tatin"))
+        longShot(a, "63-shopping-list")
+    }
+
+    @Test fun newVariantStartsFromMain() {
+        chili.variants[1].ingredients.add(Ingredient(1.0, "", "extra chili")); Store.upsert(c, chili)
+        val a = launch()
+        val s = RecipeScreen(a, chili); a.push(s); idle(600)
+        val root = a.window.decorView
+        tap(root, "Spicier")
+        val plus = all(root).first { it.contentDescription?.toString() == "New variant" }
+        plus.performClick(); idle()
+        all(root).filterIsInstance<EditText>().first { it.hint.toString() == "Spicier, Curry, Vegan…" }.setText("Mild")
+        tap(root, "Create"); idle(600)
+        val r = Store.recipe(chili.id)!!
+        val mild = r.variants.first { it.name == "Mild" }
+        assertEquals(r.variants[0].ingredients.size, mild.ingredients.size)
+        assertTrue(mild.ingredients.none { it.name == "extra chili" })
     }
 }

@@ -44,6 +44,10 @@ class QuestScreen(a: MainActivity, val r: Recipe, val variant: Int, val scale: D
         val ing = a.chip("Ingredients", false, C.BUTTER, null, 12f)
         ing.onClick { showIngredients() }
         top.addView(ing)
+        val quit = a.chip("Abandon", false, C.CARD, "x", 12f)
+        quit.contentDescription = "Abandon the quest"
+        quit.onClick { abandon() }
+        top.addView(quit, lp(WRAP, WRAP).m(l = a.dp(6)))
         col.addView(top)
         col.addView(a.script("The quest", 48f), lp(MATCH, WRAP).m(t = a.dp(4), l = -a.dp(4)))
         val bars = a.hbox()
@@ -349,6 +353,19 @@ class QuestScreen(a: MainActivity, val r: Recipe, val variant: Int, val scale: D
 
     override fun onBack(): Boolean { leave(); return true }
 
+    /** Gives up the quest: no fame, every timer of it stops (one handed to Pistachio rings there until stopped there). */
+    private fun abandon() {
+        val n = live()
+        val s = Sheet(a, "Abandon the quest?")
+        s.body.addView(a.note("No fame is earned and ${r.title} isn't marked as cooked." +
+            (if (n == 0) "" else if (n == 1) " Its running timer stops." else " Its $n running timers stop."), 13f))
+        s.button("Keep cooking").button("Abandon", primary = true) {
+            Timers.resetQuest(a, r.id, variant, v.steps.size)
+            a.pop()
+        }
+        s.show()
+    }
+
     private fun finish() {
         val n = live()
         if (n == 0) { reallyFinish(); return }
@@ -390,6 +407,7 @@ class QuestScreen(a: MainActivity, val r: Recipe, val variant: Int, val scale: D
         crown.scaleX = 0.3f; crown.scaleY = 0.3f
         crown.animate().scaleX(1f).scaleY(1f).rotation(360f).setDuration(600).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start()
         Confetti.burst(a)
+        if (lvl > beforeLvl) LevelUp.play(a)
     }
 }
 

@@ -31,7 +31,7 @@ class EquipmentTab(val ed: EditorScreen) {
             val on = r.equipment.contains(t.key)
             val ch = a.chip(if (on) Equipment.label(r, t.key) else t.name, on, t.color, t.icon, 13f)
             ch.contentDescription = "equipment " + t.key
-            ch.onClick { if (on) countSheet(t.key) else { r.equipment.add(t.key); refreshEquipment() } }
+            ch.onClick { if (on) countSheet(t.key) else { r.equipment.add(t.key); r.noEquipment = false; refreshEquipment() } }
             fl.addView(ch)
         }
         for (k in r.equipment) if (Equipment.get(k) == null) {
@@ -47,7 +47,7 @@ class EquipmentTab(val ed: EditorScreen) {
             val on = r.equipment.contains(t.key)
             val ch = a.gearChip(if (on) Equipment.label(r, t.key) else t.name, on, t.icon, 13f)
             ch.contentDescription = "equipment " + t.key
-            ch.onClick { if (on) countSheet(t.key) else { r.equipment.add(t.key); refreshEquipment() } }
+            ch.onClick { if (on) countSheet(t.key) else { r.equipment.add(t.key); r.noEquipment = false; refreshEquipment() } }
             gl.addView(ch)
         }
         col.addView(gl)
@@ -58,7 +58,7 @@ class EquipmentTab(val ed: EditorScreen) {
         val add = a.chip("Add", false, C.PIST, "plus", 13f)
         val addIt = {
             val w = e.text.toString().trim()
-            if (w.isNotEmpty() && !r.equipment.contains(w)) { r.equipment.add(w); e.setText(""); refreshEquipment() }
+            if (w.isNotEmpty() && !r.equipment.contains(w)) { r.equipment.add(w); r.noEquipment = false; e.setText(""); refreshEquipment() }
         }
         add.onClick { addIt() }
         e.setOnEditorActionListener(object : TextView.OnEditorActionListener {
@@ -66,6 +66,16 @@ class EquipmentTab(val ed: EditorScreen) {
         })
         row.addView(add, lp(WRAP, WRAP).m(l = a.dp(8)))
         col.addView(row, lp(MATCH, WRAP).m(t = a.dp(12)))
+        // an empty list is only allowed on purpose
+        val none = r.noEquipment && r.equipment.isEmpty()
+        val tick = a.chip("No equipment needed", none, C.BEIGE, if (none) "check" else "box", 13f)
+        tick.contentDescription = "no equipment"
+        tick.onClick {
+            if (none) r.noEquipment = false
+            else { r.equipment.clear(); r.equipCount.clear(); r.noEquipment = true }
+            refreshEquipment()
+        }
+        col.addView(tick, lp(WRAP, WRAP).m(t = a.dp(14)))
     }
 
     /** How many of a picked tool, or putting it back. */

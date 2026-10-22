@@ -101,15 +101,22 @@ class BoardScreen(a: MainActivity) : Screen(a) {
             val day = mon.clone() as Calendar; day.add(Calendar.DAY_OF_MONTH, i)
             val key = Days.key(day)
             val planned = entry(key)
-            if (planned == null) empty++
-            card.addView(dayRow(names[i], key, key == today, planned, i < 6))
+            if (planned == null && key >= today) empty++
+            card.addView(dayRow(names[i], key, key == today, planned, i < 6, key < today))
         }
         col.addView(card, lp(MATCH, WRAP).m(t = a.dp(4)))
+        val acts = FlowLayout(a, a.dp(8), a.dp(8))
         if (empty > 0 && Store.recipes.isNotEmpty()) {
             val b = a.chip("Roll the empty days", false, C.BUTTER, "d20", 13f)
             b.onClick { rollEmpty(mon) }
-            col.addView(b, lp(WRAP, WRAP).m(t = a.dp(12)))
+            acts.addView(b)
         }
+        if (week == 0) {
+            val b = a.chip("Shopping list", false, C.MINT, "scroll", 13f)
+            b.onClick { Shopping.show(a) }
+            acts.addView(b)
+        }
+        if (acts.childCount > 0) col.addView(acts, lp(MATCH, WRAP).m(t = a.dp(12)))
         col.addView(a.note("Long-press a planned day and drag it onto another to move or swap it.", 11f), lp(MATCH, WRAP).m(t = a.dp(10)))
         return sv
     }
@@ -128,11 +135,29 @@ class BoardScreen(a: MainActivity) : Screen(a) {
         return Planned(r, Math.max(0, Math.min(vi, r.variants.size - 1)))
     }
 
-    private fun dayRow(name: String, key: String, today: Boolean, p: Planned?, line: Boolean): View {
+    /** Days before today are kept as they were: shown dimmed, nothing to pick, roll, move or drop on (1.4). */
+    fun isPast(key: String): Boolean = key < Days.key(Calendar.getInstance())
+
+    private fun dayRow(name: String, key: String, today: Boolean, p: Planned?, line: Boolean, past: Boolean = false): View {
         val wrap = a.vbox()
         val row = a.hbox()
         row.setPadding(0, a.dp(7), 0, a.dp(7))
         row.addView(a.body(name, 12.5f, if (today) C.RASP else C.INK, 700), lp(a.dp(38), WRAP))
+        if (past) {
+            row.alpha = 0.45f
+            row.contentDescription = "past day $key"
+            if (p == null) row.addView(a.note("—", 12.5f, C.FAINT), lp(0, WRAP, 1f))
+            else {
+                val ph = RoundPhoto(a, 999f); ph.outline = true
+                ph.placeholderIcon = Classes.get(p.recipe.cls).icon; ph.placeholderColor = Classes.get(p.recipe.cls).color
+                ph.showRecipe(p.recipe, 160)
+                row.addView(ph, lp(a.dp(30), a.dp(30)).m(r = a.dp(10)))
+                row.addView(a.script(p.recipe.title, 22f).single(), lp(0, WRAP, 1f))
+            }
+            wrap.addView(row)
+            if (line) wrap.addView(View(a).also { it.background = DashLine(a) }, lp(MATCH, a.dp(2)))
+            return wrap
+        }
         if (p == null) {
             row.addView(a.note("+ pick a recipe or roll", 12.5f, C.FAINT), lp(0, WRAP, 1f))
             val d = a.icon("d20", 20, 0, C.INK, 7f); d.alpha = 0.5f
@@ -175,7 +200,7 @@ class BoardScreen(a: MainActivity) : Screen(a) {
 
     /** Moves the plan of day [from] onto day [to], swapping if [to] was planned too. */
     fun move(from: String, to: String) {
-        if (from == to) return
+        if (from == to || isPast(from) || isPast(to)) return
         val a1 = Store.plan[from]; val b = Store.plan[to]
         if (b == null) Store.plan.remove(from) else Store.plan[from] = b
         if (a1 == null) Store.plan.remove(to) else Store.plan[to] = a1
@@ -184,7 +209,7 @@ class BoardScreen(a: MainActivity) : Screen(a) {
         Photos.post { rebuild() }
     }
 
-    private fun pool(): List<Recipe> = Store.recipes.filter { !it.dessert }.ifEmpty { Store.recipes }
+    private fun pool(): List<Recipe> = Store.recipes.filter { it.kind == Recipe.MEAL }.ifEmpty { Store.recipes }
 
     private fun rollDay(key: String) {
         val p = pool(); if (p.isEmpty()) return
@@ -201,7 +226,7 @@ class BoardScreen(a: MainActivity) : Screen(a) {
         for (i in 0..6) {
             val d = mon.clone() as Calendar; d.add(Calendar.DAY_OF_MONTH, i)
             val k = Days.key(d)
-            if (entry(k) != null) continue
+            if (entry(k) != null || isPast(k)) continue
             var fresh = p.filter { it.id !in used }
             if (fresh.isEmpty()) { used.clear(); fresh = p }
             val r = fresh[rnd.nextInt(fresh.size)]

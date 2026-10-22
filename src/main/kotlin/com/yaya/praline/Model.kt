@@ -90,6 +90,8 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
     var fame = 0
     /** Kitchen tools it needs: keys from [Equipment.all] or free words. */
     val equipment: MutableList<String> = ArrayList()
+    /** The chef ticked "No equipment needed" (1.4), so an empty list is on purpose. */
+    var noEquipment = false
     /** How many of a piece of equipment (2 mixing bowls); missing means one. */
     val equipCount: MutableMap<String, Int> = HashMap()
     /** The mission world this recipe was found in ("sunforge"), or "". */
@@ -113,6 +115,7 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
         if (fame > 0) o.put("fame", fame)
         if (focusX != 0.5f || focusY != 0.5f || zoom != 1f) { o.put("fx", focusX.toDouble()); o.put("fy", focusY.toDouble()); o.put("zoom", zoom.toDouble()) }
         val eq = JSONArray(); for (x in equipment) eq.put(x); o.put("equip", eq)
+        if (noEquipment && equipment.isEmpty()) o.put("noEq", true)
         if (world.isNotEmpty()) o.put("world", world)
         if (equipCount.isNotEmpty()) { val n = JSONObject(); for ((k, c) in equipCount) if (equipment.contains(k) && c > 1) n.put(k, c); o.put("equipN", n) }
         val v = JSONArray(); for (x in variants) v.put(x.toJson()); o.put("variants", v)
@@ -155,6 +158,7 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
             r.created = o.optLong("created"); r.updated = o.optLong("updated"); r.fame = o.optInt("fame")
             r.focusX = clamp01(o.optDouble("fx", 0.5)); r.focusY = clamp01(o.optDouble("fy", 0.5)); r.zoom = Math.max(1f, Math.min(MAX_ZOOM, o.optDouble("zoom", 1.0).toFloat()))
             val eq = o.optJSONArray("equip"); if (eq != null) for (k in 0 until eq.length()) r.equipment.add(eq.getString(k))
+            r.noEquipment = o.optBoolean("noEq") && r.equipment.isEmpty()
             r.world = o.optString("world")
             val en = o.optJSONObject("equipN"); if (en != null) for (k in en.keys()) r.setCount(k, en.optInt(k, 1))
             val v = o.optJSONArray("variants") ?: JSONArray()
@@ -581,4 +585,21 @@ object Days {
     }
     fun startOfDay(ms: Long): Long { val c = Calendar.getInstance(); c.timeInMillis = ms; c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0); return c.timeInMillis }
     fun month(c: Calendar): String = MONTHS[c.get(Calendar.MONTH)]
+}
+
+/** What a recipe still lacks before it can be saved (1.4). */
+object Validate {
+    /** [tab] is the editor tab to open (0 ingredients, 1 equipment, 2 steps), [variant] the variant concerned or -1. */
+    class Missing(val text: String, val tab: Int, val variant: Int)
+
+    fun missing(r: Recipe, checkEquipment: Boolean = true): Missing? {
+        for ((i, v) in r.variants.withIndex()) {
+            val name = if (r.variants.size > 1) " in “${v.name}”" else ""
+            if (v.ingredients.none { it.name.isNotBlank() }) return Missing("Add at least one ingredient$name before saving.", 0, i)
+            if (v.steps.none { it.text.isNotBlank() || it.timerSec > 0 }) return Missing("Add at least one step$name before saving.", 2, i)
+        }
+        if (checkEquipment && r.equipment.isEmpty() && !r.noEquipment)
+            return Missing("Pick the equipment it needs, or tick “No equipment needed”.", 1, -1)
+        return null
+    }
 }

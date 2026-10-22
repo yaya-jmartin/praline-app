@@ -345,6 +345,9 @@ class ArchPortrait(c: Context, var portrait: Int) : View(c) {
 class Medallion(c: Context, var portrait: Int, var ring: Int = C.LILAC) : View(c) {
     /** Not unlocked yet: drawn dim and grey with a padlock. */
     var locked = false
+    /** The one picked in a chooser: a thick raspberry ring and a tick, drawn over the portrait. */
+    var picked = false
+    private val pSel = Paint(Paint.ANTI_ALIAS_FLAG).also { it.style = Paint.Style.STROKE; it.color = C.RASP; it.strokeWidth = c.dpf(4f) }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val pInk = Ink.inkPaint(c, c.dpf(2.2f))
     private val pFill = Ink.fillPaint(C.INK)
@@ -367,6 +370,15 @@ class Medallion(c: Context, var portrait: Int, var ring: Int = C.LILAC) : View(c
         }
         canvas.restore()
         canvas.drawCircle(cx, cy, d / 2, pInk)
+        if (picked) {
+            canvas.drawCircle(cx, cy, d / 2 - pSel.strokeWidth / 2, pSel)
+            // a tick badge on the lower right
+            val br = d * 0.17f; val bx = cx + d * 0.36f; val by = cy + d * 0.36f
+            pFill.color = C.RASP; canvas.drawCircle(bx, by, br, pFill); canvas.drawCircle(bx, by, br, pInk); pFill.color = C.INK
+            val tick = Path(); tick.moveTo(bx - br * 0.5f, by); tick.lineTo(bx - br * 0.1f, by + br * 0.4f); tick.lineTo(bx + br * 0.5f, by - br * 0.4f)
+            val w = pSel.strokeWidth; pSel.color = C.CARD; pSel.strokeWidth = context.dpf(2f)
+            canvas.drawPath(tick, pSel); pSel.color = C.RASP; pSel.strokeWidth = w
+        }
         if (locked) {
             // a little padlock in the middle
             val u = d / 10f

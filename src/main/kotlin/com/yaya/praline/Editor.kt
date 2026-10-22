@@ -21,7 +21,7 @@ import android.widget.TextView
  * Works on a copy, so leaving without saving changes nothing.
  *
  * [special] >= 0 edits one of this phone's My Variant specials instead of the shared recipe.
- * [newVariant] non-null starts a new variant with that name (a copy of [startVariant]).
+ * [newVariant] non-null starts a new variant with that name (a copy of the main variant).
  */
 class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, val special: Int = -1, newVariant: String? = null,
                    draft: Recipe? = null, draftCreated: Int = -1) : Screen(a) {
@@ -55,7 +55,7 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
             variant = 0
         }
         if (newVariant != null && !isNew) {
-            r.variants.add(r.variant(variant).copy(Share.uniqueName(names(), newVariant)))
+            r.variants.add(r.variant(0).copy(Share.uniqueName(names(), newVariant)))
             variant = r.variants.size - 1
             createdVariant = variant
         }
@@ -69,6 +69,7 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
             r.servings = back.servings; r.photo = back.photo; r.photoOrig = back.photoOrig; r.filter = back.filter; r.strength = back.strength
             r.focusX = back.focusX; r.focusY = back.focusY; r.zoom = back.zoom
             r.fame = back.fame; r.equipment.clear(); r.equipment.addAll(back.equipment); r.equipCount.clear(); r.equipCount.putAll(back.equipCount)
+            r.noEquipment = back.noEquipment
             r.variants.addAll(back.variants)
             variant = Math.max(0, Math.min(startVariant, r.variants.size - 1))
             createdVariant = draftCreated
@@ -324,7 +325,7 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         val tabs = tabsRow ?: return
         tabs.removeAllViews()
         val v = r.variant(variant)
-        val names = arrayOf("Ingredients · ${linesFor(variant).count { it.isNotBlank() }}", "Equipment · ${r.equipment.size}", "Steps · ${v.steps.size}")
+        val names = arrayOf("Ingredients · ${linesFor(variant).count { it.isNotBlank() }}", equipCount(), "Steps · ${v.steps.size}")
         val hs = HorizontalScrollView(a); hs.isHorizontalScrollBarEnabled = false
         val row = a.hbox()
         for (i in 0..2) {
@@ -344,12 +345,14 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         }
     }
 
+    private fun equipCount() = if (r.noEquipment && r.equipment.isEmpty()) "Equipment · none" else "Equipment · ${r.equipment.size}"
+
     internal fun refreshTabCounts() {
         val row = ((tabsRow?.getChildAt(0) as? HorizontalScrollView)?.getChildAt(0) as? LinearLayout) ?: return
         val v = r.variant(variant)
         val counts = ArrayList<String>()
         counts.add("Ingredients · ${linesFor(variant).count { it.isNotBlank() }}")
-        if (!isSpecial) counts.add("Equipment · ${r.equipment.size}")
+        if (!isSpecial) counts.add(equipCount())
         counts.add("Steps · ${v.steps.size}")
         for (i in 0 until Math.min(row.childCount, counts.size)) ((row.getChildAt(i) as LinearLayout).tag as TextView).text = counts[i]
     }
@@ -379,12 +382,12 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
     // ---- variants ---------------------------------------------------------------
     private fun addVariant() {
         val s = Sheet(a, "New variant")
-        s.body.addView(a.note("It starts as a copy of “${r.variant(variant).name}”, with its own ingredients and steps.", 12.5f))
+        s.body.addView(a.note("It starts as a copy of “${r.variant(0).name}”, with its own ingredients and steps.", 12.5f))
         val e = Fields.line(a, "Spicier, Curry, Vegan…")
         s.body.addView(e, lp(MATCH, WRAP).m(t = a.dp(10)))
         s.button("Cancel").button("Create", primary = true) {
             val name = e.text.toString().trim()
-            if (name.isNotEmpty()) { commit(); r.variants.add(r.variant(variant).copy(Share.uniqueName(names(), name))); variant = r.variants.size - 1; a.hideKeyboard(); rebuild() }
+            if (name.isNotEmpty()) { commit(); r.variants.add(r.variant(0).copy(Share.uniqueName(names(), name))); variant = r.variants.size - 1; a.hideKeyboard(); rebuild() }
         }
         s.show(); a.showKeyboard(e)
     }
@@ -428,6 +431,7 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         if (r.title.isEmpty()) { a.toast("Give it a name first"); return }
         cleanSteps()
         a.hideKeyboard()
+        if (!complete()) return
         if (isSpecial) { saving.special(); return }
         val b = before
         if (b != null && Share.isShared(b)) { saving.choose(b); return }
@@ -436,6 +440,23 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         a.toast(if (isNew) "Added to the grimoire" else "Saved")
     }
 
+
+    /**
+     * A recipe needs at least one ingredient and one step in every variant, and its equipment (or "No equipment
+     * needed" ticked). Otherwise says what's missing and opens that tab (1.4).
+     */
+    internal fun complete(): Boolean {
+        val miss = Validate.missing(r, !isSpecial)
+        if (miss == null) return true
+        val s = Sheet(a, "Not ready yet")
+        s.body.addView(a.note(miss.text, 13f))
+        s.button("Keep editing", primary = true) {
+            if (miss.variant >= 0 && miss.variant != variant) { variant = miss.variant; rebuild() }
+            showTab(miss.tab)
+        }
+        s.show()
+        return false
+    }
 
     private fun leave() {
         commit()

@@ -272,4 +272,57 @@ class V14Test {
         assertTrue(Store.peers.any { it.confirmed })
         assertTrue(Store.peers.all { it.lastSync > 0L })
     }
+
+    @Test fun shoppingListAddsUpTodayToSunday() {
+        // Wednesday 21 October 2026, noon
+        val cal = java.util.Calendar.getInstance(); cal.set(2026, 9, 21, 12, 0, 0)
+        val now = cal.timeInMillis
+        val r = LogicTest.sample("Tatin", true, "bard", "S", 3, 40); Store.upsert(c, r)
+        r.variants[0].ingredients.add(Ingredient(null, "", "Salt"))
+        val flour = r.variants[0].ingredients.first { it.name == "flour" }
+        Store.plan["2026-10-19"] = r.id + "|0"   // Monday: already past
+        Store.plan["2026-10-21"] = r.id + "|0"   // today
+        Store.plan["2026-10-25"] = r.id + "|0"   // Sunday
+        Store.plan["2026-10-26"] = r.id + "|0"   // next Monday: next week's list
+        assertEquals(listOf("2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25"), Shopping.days(now))
+        val ls = Shopping.lines(now)
+        val f = ls.first { it.name == "flour" }
+        assertEquals(flour.qty!! * 2, f.qty!!, 1e-9)
+        assertEquals(1, ls.count { it.name.equals("salt", true) })
+        assertEquals("Salt (to taste)", ls.first { it.name == "Salt" }.text())
+        assertTrue(Shopping.text(now).startsWith("Shopping list"))
+        assertTrue(Shopping.text(now).contains("☐ " + f.text()))
+    }
+
+    @Test fun aRecipeNeedsIngredientsStepsAndEquipment() {
+        val r = LogicTest.sample("Tatin", true, "bard", "S", 3, 40)
+        r.equipment.clear(); r.noEquipment = false
+        assertEquals(1, Validate.missing(r)!!.tab)
+        r.noEquipment = true
+        assertNull(Validate.missing(r))
+        assertTrue(r.toJson().getBoolean("noEq"))
+        assertTrue(Recipe.fromJson(r.toJson()).noEquipment)
+        // a variant without steps, then without ingredients
+        val v = r.variant(0).copy("Bare"); v.steps.clear(); r.variants.add(v)
+        val m = Validate.missing(r)!!
+        assertEquals(2, m.tab); assertEquals(1, m.variant); assertTrue(m.text.contains("Bare"))
+        v.steps.add(Step("Bake", 0, "", "", "", 1)); v.ingredients.clear()
+        assertEquals(0, Validate.missing(r)!!.tab)
+        // a special has no equipment of its own
+        v.ingredients.add(Ingredient(1.0, "", "egg")); r.noEquipment = false
+        assertNull(Validate.missing(r, checkEquipment = false))
+        // picking a tool undoes the tick when saved
+        r.noEquipment = true; r.equipment.add("whisk")
+        assertFalse(Recipe.fromJson(r.toJson()).noEquipment)
+    }
+
+    @Test fun theLevelUpChimeIsMadeOnThePhone() {
+        val pcm = LevelUp.samples()
+        assertTrue(pcm.size > 22050)
+        var peak = 0; for (x in pcm) peak = Math.max(peak, Math.abs(x.toInt()))
+        assertTrue(peak in 20000..Short.MAX_VALUE.toInt())
+        // it fades out
+        var tail = 0; for (i in pcm.size - 500 until pcm.size) tail = Math.max(tail, Math.abs(pcm[i].toInt()))
+        assertTrue(tail < peak / 10)
+    }
 }

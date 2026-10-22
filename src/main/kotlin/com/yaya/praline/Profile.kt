@@ -22,7 +22,7 @@ class ProfileScreen(a: MainActivity, var chef: Chef, val readOnly: Boolean) : Sc
         top.addView(back, lp(a.dp(38), a.dp(38)))
         top.addView(a.label(if (readOnly) "The other chef · read only" else "Character sheet").also { it.gravity = Gravity.CENTER }, lp(0, WRAP, 1f))
         if (!readOnly) {
-            val ed = a.roundIcon("pencil", 38, C.CARD, 16, 10f); ed.onClick { edit() }
+            val ed = a.roundIcon("pencil", 38, C.CARD, 16, 10f); ed.contentDescription = "edit chef"; ed.onClick { edit() }
             top.addView(ed, lp(a.dp(38), a.dp(38)))
         } else top.addView(a.space(a.dp(38), 1))
         col.addView(top)
@@ -223,15 +223,16 @@ class ProfileScreen(a: MainActivity, var chef: Chef, val readOnly: Boolean) : Sc
             if (i % 5 == 0) { row = a.hbox(); row.gravity = Gravity.TOP; grid.addView(row, lp(MATCH, WRAP).m(b = a.dp(8))) }
             val open = Portraits.unlocked(i, lvl)
             val cell = a.vbox(); cell.gravity = Gravity.CENTER_HORIZONTAL
-            val m = Medallion(a, i, if (i == pick) C.RASP else C.CARD)
+            val m = Medallion(a, i, C.CARD)
             m.locked = !open
+            m.picked = i == pick
             meds.add(m)
             cell.addView(m, lp(a.dp(54), a.dp(54)))
             cell.addView(a.body(if (open) Portraits.NAMES[i] else "Lv ${Portraits.UNLOCK[i]}", 9.5f, if (open) C.INK2 else C.RASP, 600).also { it.gravity = Gravity.CENTER; it.maxLines = 2 }, lp(MATCH, WRAP).m(t = a.dp(2)))
             cell.contentDescription = "portrait $i"
             cell.onClick {
                 if (!open) a.toast("Reach level ${Portraits.UNLOCK[i]} to unlock the ${Portraits.NAMES[i]}")
-                else { pick = i; for (k in meds.indices) { meds[k].ring = if (k == i) C.RASP else C.CARD; meds[k].invalidate() } }
+                else { pick = i; for (k in meds.indices) { meds[k].picked = k == i; meds[k].invalidate() } }
             }
             row.addView(cell, lp(0, WRAP, 1f))
         }
