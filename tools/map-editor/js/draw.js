@@ -88,7 +88,7 @@ var Draw = (function () {
     if (!lib) return { x: -15, y: -30, w: 30, h: 30 };
     if (lib.kind === 'fx') {
       var p = it.params || {};
-      var r = lib.fx === 'halo' ? (p.halo || 110) * 0.5 : lib.fx === 'glints' ? Math.max(p.rx || 60, 20) : lib.fx === 'glow' ? (p.r || 22) * 1.6 : 18;
+      var r = lib.fx === 'halo' ? (p.halo || 110) * 0.5 : lib.fx === 'glints' ? Math.max(p.rx || 60, 20) : lib.fx === 'glow' ? (p.halo || 2 * (p.r || 22)) : lib.fx === 'ripples' ? Math.max(p.rx || 30, 12) : 18;
       return { x: -r, y: -r, w: 2 * r, h: 2 * r };
     }
     var sc = (it.scale || 1) / (lib.ppu || 3);
@@ -128,10 +128,11 @@ var Draw = (function () {
         break;
       }
       case 'glow': {
-        var pr = v('r') * (1 + 0.18 * Math.sin(t / Math.max(0.2, v('pulse')) * Math.PI * 2));
-        var gg = g.createRadialGradient(0, 0, 0, 0, 0, pr * 1.8);
-        gg.addColorStop(0, rgba(v('color'), 0.85)); gg.addColorStop(0.35, rgba(v('color'), 0.35)); gg.addColorStop(1, rgba(v('color'), 0));
-        g.globalCompositeOperation = 'lighter'; g.fillStyle = gg; g.beginPath(); g.arc(0, 0, pr * 1.8, 0, Math.PI * 2); g.fill();
+        var pf = 1 + 0.18 * Math.sin(t / Math.max(0.2, v('pulse')) * Math.PI * 2);
+        var pr = v('r') * pf, ph2 = Math.max(pr, (v('halo') || 2 * v('r')) * pf);
+        var gg = g.createRadialGradient(0, 0, 0, 0, 0, ph2);
+        gg.addColorStop(0, rgba(v('color'), 0.85)); gg.addColorStop(Math.min(0.95, pr / ph2 * 0.6), rgba(v('color'), 0.35)); gg.addColorStop(1, rgba(v('color'), 0));
+        g.globalCompositeOperation = 'lighter'; g.fillStyle = gg; g.beginPath(); g.arc(0, 0, ph2, 0, Math.PI * 2); g.fill();
         break;
       }
       case 'glints': {
@@ -180,6 +181,46 @@ var Draw = (function () {
         g.globalCompositeOperation = 'lighter'; g.strokeStyle = gb; g.lineCap = 'round';
         g.lineWidth = bw; g.beginPath(); g.moveTo(0, 0); g.lineTo(tx, ty); g.stroke();
         g.lineWidth = bw * 0.3; g.strokeStyle = rgba('#FFFFFF', 0.6); g.beginPath(); g.moveTo(0, 0); g.lineTo(tx, ty); g.stroke();
+        var fr = v('flare') * (1 + 0.15 * Math.sin(t * 3));
+        if (fr > 0) {
+          var gf = g.createRadialGradient(tx, ty, 0, tx, ty, fr);
+          gf.addColorStop(0, rgba('#FFFFFF', 0.9)); gf.addColorStop(0.3, rgba(v('color'), 0.6)); gf.addColorStop(1, rgba(v('color'), 0));
+          g.fillStyle = gf; g.beginPath(); g.arc(tx, ty, fr, 0, Math.PI * 2); g.fill();
+        }
+        if (v('sparks') !== false && v('sparks') !== 0) {
+          for (var bs = 0; bs < 12; bs++) {
+            var bph = ((t + rand(bs, seed) * 1.4) % 1.4) / 1.4, ba = rand(bs + 20, seed) * Math.PI * 2;
+            g.fillStyle = rgba('#FFE7A6', 1 - bph);
+            g.beginPath(); g.arc(tx + Math.cos(ba) * bph * 40, ty + Math.sin(ba) * bph * 40 - bph * 14, 1.3, 0, Math.PI * 2); g.fill();
+          }
+        }
+        break;
+      }
+      case 'flame': {
+        var fw = v('w'), fh = v('h');
+        g.globalCompositeOperation = 'lighter';
+        var gl = g.createRadialGradient(0, -fh * 0.3, 0, 0, -fh * 0.3, fh * 1.4);
+        gl.addColorStop(0, rgba(v('color'), 0.35)); gl.addColorStop(1, rgba(v('color'), 0));
+        g.fillStyle = gl; g.beginPath(); g.arc(0, -fh * 0.3, fh * 1.4, 0, Math.PI * 2); g.fill();
+        g.globalCompositeOperation = 'source-over';
+        [[1, v('color'), 0.95], [0.55, v('core'), 1]].forEach(function (L, li) {
+          var sw = fw * L[0] / 2, sh = fh * L[0] * (1 + 0.12 * Math.sin(t * 9 + li * 2)), lean = 3 * Math.sin(t * 5 + li);
+          g.fillStyle = rgba(L[1], L[2]);
+          g.beginPath(); g.moveTo(-sw, 0);
+          g.quadraticCurveTo(-sw * 1.1, -sh * 0.5, lean, -sh);
+          g.quadraticCurveTo(sw * 1.1, -sh * 0.5, sw, 0);
+          g.quadraticCurveTo(0, sw * 0.6, -sw, 0); g.closePath(); g.fill();
+        });
+        break;
+      }
+      case 'ripples': {
+        var per = Math.max(0.3, v('period'));
+        g.lineWidth = 1.2;
+        for (var rq = 0; rq < 3; rq++) {
+          var rp = ((t / per + rq / 3) % 1);
+          g.strokeStyle = rgba('#FFFFFF', 0.55 * (1 - rp));
+          g.beginPath(); g.ellipse(0, 0, Math.max(0.5, v('rx') * rp), Math.max(0.5, v('ry') * rp), 0, 0, Math.PI * 2); g.stroke();
+        }
         break;
       }
       case 'motes':

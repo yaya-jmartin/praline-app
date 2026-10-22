@@ -211,6 +211,8 @@ var IO = (function () {
       spots: [], library: {}, items: [],
       editor: { nextSpot: p.nextSpot, nextItem: p.nextItem }
     };
+    var end = p.world.ending || {};
+    if ((end.title || '').trim() || (end.story || '').trim()) world.ending = { title: (end.title || '').trim(), story: (end.story || '').trim() };
     p.spots.forEach(function (s) {
       var at = tr.at(s.along);
       var o = { id: s.id, kind: s.kind, name: s.name.trim(), along: round(s.along, 4), x: round(at.x, 1), y: round(at.y, 1), side: s.side, xp: s.xp | 0, story: s.story };
@@ -265,6 +267,7 @@ var IO = (function () {
     if (w.v > 1) throw new Error('it was made by a newer map editor');
     var p = Model.template();
     p.world = { id: w.id, kind: w.kind || 'mission', name: w.name || w.id, intro: w.intro || '', height: w.height,
+      ending: { title: (w.ending && w.ending.title) || '', story: (w.ending && w.ending.story) || '' },
       title: w.title || { text: '', x: 206, y: 150, size: 40, color: '#3B2414', rotate: 0, font: 'title' } };
     p.trail = w.trail && w.trail.bezier && w.trail.bezier.length > 1 ? w.trail.bezier : Geom.fromPoints(w.trail.points, 12);
     p.parchment = { mode: 'none', file: '' };

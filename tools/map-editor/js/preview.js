@@ -212,7 +212,7 @@ var Preview = (function () {
       g.strokeStyle = accent; g.lineWidth = 2; g.beginPath(); g.ellipse(x, y, 19, 6.5, 0, 0, Math.PI * 2); g.stroke();
       // pennant
       var px = x - 14, ptop = y - 64;
-      g.strokeStyle = '#2B1C10'; g.lineWidth = 3.2; g.beginPath(); g.moveTo(px, ptop); g.lineTo(px, y); g.stroke();
+      g.strokeStyle = '#2B1C10'; g.lineWidth = 3.2; g.beginPath(); g.moveTo(px, ptop); g.lineTo(px, y + 2); g.stroke();
       g.strokeStyle = '#8A5432'; g.lineWidth = 1.8; g.stroke();
       var wave = 2 * Math.sin(time * 2 + i);
       g.beginPath(); g.moveTo(px, ptop); g.lineTo(px + 24, ptop + 4 + wave); g.lineTo(px + 17, ptop + 9); g.lineTo(px + 24, ptop + 14 + wave); g.lineTo(px, ptop + 15); g.closePath();

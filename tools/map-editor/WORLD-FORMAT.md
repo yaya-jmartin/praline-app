@@ -20,7 +20,7 @@ A plain zip (stored or deflated). Entry names use only `A-Z a-z 0-9 . _ -` insid
 | Entry | What |
 | --- | --- |
 | `world.json` | Everything below. At most 1 MB. |
-| `slices/sNN.webp` | The flattened map (parchment + art + baked items), 1236 × 1575 px each (525 units), opaque WebP. The last slice may be shorter. |
+| `slices/sNN.webp` | The flattened map (parchment + art + baked items), opaque WebP (JPEG is also read). The editor writes 1236 × 1575 px slices (525 units); the last slice may be shorter. The scene places each slice by its `top` and `height` in units, never by its pixel size. |
 | `recipes/<spotId>.praline` | One recipe file per recipe spot, exactly the app's `.praline` format (`praline.json` + `photos/*.jpg`), cover picture included. |
 | `library/<file>` | PNG or WebP pictures used by items, icons and rewards. |
 
@@ -37,6 +37,7 @@ entries ignored, names outside the folders above rejected. A pack is untrusted i
   "kind": "mission",
   "name": "The Sunforge Sands",
   "intro": "Optional story shown when the party first opens the world.",
+  "ending": { "title": "The Calice is lit", "story": "Optional story shown when the last spot is cooked." },
   "width": 412,
   "height": 3150,
   "scale": 3,
@@ -95,6 +96,8 @@ entries ignored, names outside the folders above rejected. A pack is untrusted i
 - `id`: `[a-z0-9-]{1,32}`, permanent. Mission progress is keyed by it (`Store.missions[id]`), so it never changes once a world ships.
 - `kind`: `"mission"` today. `"housing"` and others later use the same layout with no trail.
 - `name`: shown in lists and the mission header. `title` is the name painted over the map, drawn live by the app (`font`: `"title"` = Mea Culpa, `"body"` = Fraunces semibold).
+- `scale`: px per unit of the slices. The editor writes 3; the Sunforge pack bundled with the app is 2 (824 px slices). Library pictures carry their own `ppu`.
+- `ending` (optional): the banner shown when the last spot is cooked, `title` (up to 40 characters) and `story` (up to 600).
 - `height`: map height in units (2,400 to 4,800 recommended). `slices` cover `0..height` with no gaps.
 - `editor` (optional): the map editor's own counters (`nextSpot`, `nextItem`) so ids are never reused when a pack is opened again. The app ignores it.
 - `trail.points`: the path sampled every 8 units or less, from start (party's first step) to end. `length` = its length in units. `bezier` is the editor's own copy (anchors with in/out handles) and the app may ignore it.
@@ -136,16 +139,29 @@ FX kinds and their `params` (all optional; defaults in brackets):
 | --- | --- | --- |
 | `rays` | god rays fanning from the point | `from` [92], `to` [172] degrees, `length` [1500], `count` [7], `color` [#FFE7A6], `alpha` [0.35] |
 | `halo` | a soft round glow, a sun | `r` [34], `halo` [110], `color` [#FFF1C2] |
-| `glow` | a pulsing light (lantern, kiln) | `r` [22], `color` [#FFB347], `pulse` [2.2] seconds |
+| `glow` | a pulsing light (lantern, kiln) | `r` [22], `halo` [2 × `r`] outer glow radius, `color` [#FFB347], `pulse` [2.2] seconds |
 | `glints` | twinkling sparkles on water | `rx` [60], `ry` [24], `count` [6], `color` [#FFFFFF] |
 | `smoke` | a rising smoke plume | `color` [#B8A898], `rate` [1] |
 | `sparks` | sparks rising (forge, campfire) | `color` [#FFC266], `rate` [1] |
 | `sand` | a drifting sand plume | `color` [#E8C890], `rate` [1] |
 | `heat` | heat shimmer | `w` [40], `h` [60] |
-| `beam` | a light beam to another point | `tx`, `ty` (end), `width` [14], `color` [#FFE7A6] |
+| `beam` | a light beam to another point | `tx`, `ty` (end), `width` [14], `color` [#FFE7A6], `flare` [30] impact flare radius at the end, `sparks` [true] |
 | `motes` | dust motes over the whole visible map (x, y ignored) | `count` [70], `color` [#FFE9B8] |
+| `flame` | a campfire flame | `w` [12], `h` [28], `color` [#FF8A2A], `core` [#FFD25A] |
+| `ripples` | rings spreading on water | `rx` [30], `ry` [10], `period` [3.2] seconds |
 
-A scene that meets an `fx` it doesn't know skips it.
+A scene that meets an `fx` it doesn't know, or an item whose `lib` is missing, skips it.
+
+## What the app draws itself
+
+The pack holds the world, not the mission chrome. The app draws the spot dais, the pennant (pole at `x − 14`, from `y − 64`
+down to `y + 2`), the medallion ring at `(x, y − 34)` around the spot's `icon`, the MUST COOK pill, the lock on the trail
+and the party's chef figures, all relative to each spot's `x`, `y`. The editor's phone preview draws them the same way.
+
+## Packs opened on the phone
+
+A `.praline-world` opened from Files or a chat app is checked against the limits above and kept as
+`filesDir/worlds/<id>.praline-world`, replacing an older copy with the same `id`.
 
 ## Budgets
 
