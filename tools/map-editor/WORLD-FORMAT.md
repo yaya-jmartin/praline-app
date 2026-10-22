@@ -96,6 +96,7 @@ entries ignored, names outside the folders above rejected. A pack is untrusted i
 - `kind`: `"mission"` today. `"housing"` and others later use the same layout with no trail.
 - `name`: shown in lists and the mission header. `title` is the name painted over the map, drawn live by the app (`font`: `"title"` = Mea Culpa, `"body"` = Fraunces semibold).
 - `height`: map height in units (2,400 to 4,800 recommended). `slices` cover `0..height` with no gaps.
+- `editor` (optional): the map editor's own counters (`nextSpot`, `nextItem`) so ids are never reused when a pack is opened again. The app ignores it.
 - `trail.points`: the path sampled every 8 units or less, from start (party's first step) to end. `length` = its length in units. `bezier` is the editor's own copy (anchors with in/out handles) and the app may ignore it.
 
 ### Spots
