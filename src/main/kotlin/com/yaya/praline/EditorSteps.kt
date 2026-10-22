@@ -43,7 +43,28 @@ class StepTab(val ed: EditorScreen) {
             e?.requestFocus(); if (e != null) a.showKeyboard(e)
             card.post(object : Runnable { override fun run() { reveal(card) } })
         }
-        col.addView(add, lp(WRAP, WRAP).m(t = a.dp(2)))
+        val btns = a.hbox()
+        btns.addView(add, lp(WRAP, WRAP).m(r = a.dp(8)))
+        val paste = a.chip("Paste steps", false, C.BUTTER, "scroll", 13f)
+        paste.onClick { pasteSteps(v) }
+        btns.addView(paste)
+        col.addView(btns, lp(MATCH, WRAP).m(t = a.dp(2)))
+    }
+
+    /** A whole method pasted at once, like the ingredient list: numbered lines, paragraphs, or one step per line (1.4). */
+    private fun pasteSteps(v: Variant) {
+        val s = Sheet(a, "Paste steps")
+        val e = Fields.line(a, "1. Whisk the eggs and sugar.\n2. Fold in the flour.\n3. Bake 25 min.", 15f, true)
+        e.minLines = 6; e.gravity = Gravity.TOP
+        s.body.addView(e, lp(MATCH, WRAP))
+        s.body.addView(a.note("Numbered lines, paragraphs or one step per line. Blank steps are left out.", 11.5f), lp(MATCH, WRAP).m(t = a.dp(6)))
+        s.button("Cancel").button("Add them", primary = true) {
+            // an empty first step from "Add a step" is replaced, not kept
+            v.steps.removeAll { it.text.isBlank() && it.timerSec == 0 && it.hint.isEmpty() && it.video.isEmpty() }
+            for (t in StepImport.split(e.text.toString())) v.steps.add(Step(t))
+            a.hideKeyboard(); redrawSteps(v)
+        }
+        s.show(); a.showKeyboard(e)
     }
 
     private fun redrawSteps(v: Variant) {

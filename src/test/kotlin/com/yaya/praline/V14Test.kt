@@ -325,4 +325,12 @@ class V14Test {
         var tail = 0; for (i in pcm.size - 500 until pcm.size) tail = Math.max(tail, Math.abs(pcm[i].toInt()))
         assertTrue(tail < peak / 10)
     }
+
+    @Test fun pastedStepsAreSplit() {
+        assertEquals(listOf("Whisk the eggs and sugar until pale.", "Fold in the flour.", "Bake 25 min at 180°C."),
+            StepImport.split("1. Whisk the eggs and sugar\nuntil pale.\n2) Fold in the flour.\n\nStep 3: Bake 25 min at 180°C."))
+        assertEquals(listOf("Melt the butter.", "Add 2 eggs and mix well."), StepImport.split("Melt the butter.\n\nAdd 2 eggs\nand mix well."))
+        assertEquals(listOf("Melt the butter.", "Add 2 eggs."), StepImport.split("- Melt the butter.\n• Add 2 eggs.\n\n"))
+        assertTrue(StepImport.split("  \n ").isEmpty())
+    }
 }

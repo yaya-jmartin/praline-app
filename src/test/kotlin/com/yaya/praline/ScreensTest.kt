@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import org.junit.Assert.*
@@ -754,5 +755,33 @@ class ScreensTest {
         val mild = r.variants.first { it.name == "Mild" }
         assertEquals(r.variants[0].ingredients.size, mild.ingredients.size)
         assertTrue(mild.ingredients.none { it.name == "extra chili" })
+    }
+
+    @Test fun ingredientsDragToReorderAndStepsPaste() {
+        val a = launch()
+        val e = EditorScreen(a, tatin, 0)
+        a.push(e); idle(600)
+        val root = a.window.decorView
+        val first = e.linesFor(0)[0]
+        val grip = all(root).filter { it.contentDescription?.toString() == "move ingredient" }[0]
+        val row = grip.parent as View
+        val list = row.parent as LinearLayout
+        // drag the first row down past the second
+        row.translationY = row.height * 1.2f
+        Reorder.step(row, list) { from, to -> e.linesFor(0).add(to, e.linesFor(0).removeAt(from)) }
+        idle()
+        assertEquals(first, e.linesFor(0)[1])
+        assertEquals(1, list.indexOfChild(row))
+        tap(root, "Add to the grimoire".takeIf { has(root, it) } ?: "Save"); idle(600)
+        assertEquals(first, Store.recipe(tatin.id)!!.variants[0].ingredients[1].raw())
+        // paste a numbered method into a new recipe's steps
+        val n = EditorScreen(a, null); a.push(n); idle(600)
+        tap(root, "Steps · 0")
+        tap(root, "Paste steps")
+        all(root).filterIsInstance<EditText>().last { it.isShown }.setText("1. Melt the butter.\n2. Add the sugar.\n3. Stir.")
+        tap(root, "Add them"); idle()
+        assertEquals(3, n.r.variant(0).steps.size)
+        assertTrue(has(root, "Steps · 3"))
+        longShot(a, "64-editor-pasted-steps")
     }
 }

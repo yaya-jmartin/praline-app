@@ -27,7 +27,7 @@ class IngredientTab(val ed: EditorScreen) {
 
     fun build(col: LinearLayout) {
         val l = ed.linesFor(variant)
-        col.addView(a.note("One per line, quantity first: “200 g flour”, “1 ½ cup milk”, “2 eggs”. Leave the amount out for things like salt: it shows as “to taste”.", 11.5f), lp(MATCH, WRAP).m(b = a.dp(8)))
+        col.addView(a.note("One per line, quantity first: “200 g flour”, “1 ½ cup milk”, “2 eggs”. Leave the amount out for things like salt: it shows as “to taste”. Drag the handle to reorder.", 11.5f), lp(MATCH, WRAP).m(b = a.dp(8)))
         val list = a.vbox()
         ingList = list
         col.addView(list, lp(MATCH, WRAP))
@@ -44,8 +44,14 @@ class IngredientTab(val ed: EditorScreen) {
     }
 
     private fun ingredientRow(l: MutableList<String>, text: String, names: List<String>): View {
-        val row = a.hbox()
-        row.addView(a.icon("sprig", 18, C.PIST, C.INK, 7f), lp(a.dp(18), a.dp(18)).m(r = a.dp(8)))
+        val row = a.hbox(); row.gravity = Gravity.CENTER_VERTICAL
+        // drag by the handle to reorder (1.4)
+        val grip = a.icon("drag", 20, 0, C.INK2, 7f)
+        grip.contentDescription = "move ingredient"
+        grip.setPadding(0, a.dp(6), 0, a.dp(6))
+        row.addView(grip, lp(a.dp(22), a.dp(34)).m(r = a.dp(6)))
+        val list = ingList
+        if (list != null) Reorder.attach(grip, row, list) { from, to -> if (from < l.size && to < l.size) l.add(to, l.removeAt(from)) }
         val e = android.widget.AutoCompleteTextView(a)
         styleField(e, "200 g flour", 15f)
         e.threshold = 1
