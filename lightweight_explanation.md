@@ -33,6 +33,13 @@ One constraint shapes most of the choices below. The computer Claude builds on c
 | **Painted map slices** | The world map cut into six pictures stacked top to bottom | Shows The Sunforge Sands; only the pieces near the screen are kept in memory | One giant picture would use too much memory on smaller phones |
 | **Live drawing on the map** | The phone draws on top of the pictures, many times a second | Sun rays, the Calice's beam, forge sparks, the lit trail, the dusk ahead, the spots and the two chefs | Moves and changes with your progress without needing a new picture for every state |
 
+## New in 1.4: the map scene (no new libraries)
+
+| Building block | What it is | What it does for Praliné | Why this one |
+|---|---|---|---|
+| **The map scene** | One shared piece of drawing code for every painted, moving picture in the app, like a small game engine but only the parts Praliné needs | Shows the painted map, its moving decorations and light effects, keeps only the pieces near the screen in memory, and stops drawing when you leave | Written once and reused for every world (and housing later), instead of copying the drawing code per screen. A real game engine (LibGDX, Korge) would add megabytes and a separate drawing surface that doesn't mix with the hand-inked screens |
+| **World files** (`.praline-world`, a zip file) | A whole world packed in one file: the painted map, the trail, the spots with their stories and recipes, the decorations | The map editor on your PC makes them; Praliné opens one from Files or a chat app and adds the world. The Sunforge Sands now ships as one too | Same idea as recipe files: one parcel, any app can carry it, no server. The editor and the app share one written format, so what you build is what plays |
+
 ## The tools that build the app (not inside it)
 
 Same chain as Pistachio:

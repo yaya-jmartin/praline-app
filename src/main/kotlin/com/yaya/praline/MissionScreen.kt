@@ -19,7 +19,7 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
         val col = a.vbox()
 
         // the map first: it knows where the spots sit along the trail
-        val m = MissionMap(a, world.asset, Missions.progress(world))
+        val m = MissionMap(a, Worlds.get(world.id)!!, Missions.progress(world))
         map = m
         val p = Missions.progress(world)
         m.progress = p

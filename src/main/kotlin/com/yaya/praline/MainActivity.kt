@@ -203,7 +203,7 @@ class MainActivity : Activity() {
 
     override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); openRecipeFile(i) }
 
-    /** A recipe file opened from a chat app or Files ([RecipeFiles]). */
+    /** A recipe file ([RecipeFiles]) or a world file ([WorldPack]) opened from a chat app or Files. */
     fun openRecipeFile(i: Intent?) {
         if (i == null) return
         @Suppress("DEPRECATION")
@@ -214,7 +214,7 @@ class MainActivity : Activity() {
         }
         if (uri == null) return
         i.action = null
-        RecipeFiles.offer(this, uri)
+        WorldPack.route(this, uri)
     }
 
     /** Picks a recipe file from the phone (Settings). */
@@ -223,7 +223,7 @@ class MainActivity : Activity() {
         try { startActivityForResult(i, REQ_RECIPE_FILE) } catch (e: Exception) { toast("No file picker found") }
     }
 
-    override fun onTrimMemory(level: Int) { super.onTrimMemory(level); Photos.trim(level) }
+    override fun onTrimMemory(level: Int) { super.onTrimMemory(level); Photos.trim(level); SceneView.trim(level) }
 
     @Suppress("DEPRECATION")
     override fun onLowMemory() { super.onLowMemory(); Photos.trim(android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE) }
@@ -617,7 +617,7 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQ_RECIPE_FILE) { val u = data?.data; if (resultCode == Activity.RESULT_OK && u != null) RecipeFiles.offer(this, u); return }
+        if (requestCode == REQ_RECIPE_FILE) { val u = data?.data; if (resultCode == Activity.RESULT_OK && u != null) WorldPack.route(this, u); return }
         if (requestCode == REQ_VIDEO || requestCode == REQ_VIDEO_GALLERY) {
             val vcb = videoCallback ?: return
             videoCallback = null
