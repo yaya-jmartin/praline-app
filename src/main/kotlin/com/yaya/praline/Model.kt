@@ -351,6 +351,7 @@ object Store {
     fun newPhotoName(): String = UUID.randomUUID().toString().replace("-", "").substring(0, 16) + ".jpg"
 
     fun load(c: Context) {
+        Worlds.init(c)
         if (loaded) return
         loaded = true
         clearAll()

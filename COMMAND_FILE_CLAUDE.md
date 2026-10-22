@@ -38,7 +38,8 @@ App: **Praliné**, package `com.yaya.praline`, current version **1.3** (versionC
 | Camera | `android.hardware.Camera` (deprecated API) + `TextureView` for the QR scanner (preview size from `pickPreviewSize`: sharpest ≤1080p; refocus every 1.5 s; two binarizers + inverted); system camera intents for photos/clips via `PhotoProvider` | |
 | Sync | Same-Wi-Fi TCP socket (`ServerSocket`), NSD (DNS-SD) discovery, protocol 3 (1.3): ECDH key exchange per sync, mutual proof of the pairing secret, AES-256-GCM sealed streams (`SecureLink`), JSON payloads; only on the saved home Wi-Fi (`HomeWifi`, SSID via location permission) | no server, no account |
 | Recipe files | `.praline` zip (praline.json + photos/) shared through the share sheet, opened via VIEW/SEND intents (`RecipeFiles`) | for chefs outside the household |
-| Missions | `Missions` (logic, world list), `Templates` (placeholder recipes), `MissionMap` (painted slices in assets/missions/<world>/ + live effects), `MissionScreen` | |
+| Missions | `Missions` (logic, world list), `Templates` (placeholder recipes), `MissionMap` (mission layer on the map scene), `MissionScreen` | |
+| Map scene (1.4) | `SceneView` + `SceneFx` (Scene.kt): camera, slice and picture memory, sprites, sprite sheets, live effects, one clock, taps. `WorldPack` reads `.praline-world` packs (format: `tools/map-editor/WORLD-FORMAT.md`), `Worlds` lists bundled (assets/worlds/<id>/, unzipped) and installed (filesDir/worlds/<id>.praline-world) worlds. Mission chrome (dais, lock, figures) in assets/missions/chrome/ | the map editor writes packs, the scene plays them |
 | Timers | `AlarmManager` + `TimerReceiver`, `BootReceiver`; hand-off to Pistachio with `ACTION_SET_TIMER` | |
 | Build / tests | Gradle → ProGuard → dx → aapt2 → apksigner; Robolectric 4.14.1. From 1.3 also `agp/` (Android Gradle Plugin 8.7.3, compileSdk 35) built by `.github/workflows/android.yml` on every push/PR: debug + release APKs, unit tests, Android Lint, artifacts kept 14 days; no release signing yet | signing alias `praline`, key + password only in `signing-backup/`, never in git or memory |
 
@@ -50,7 +51,8 @@ Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, Camera
 - **One store**: `Store` (Model.kt) owns `Recipe` / `Variant` / `Step` / `Ingredient` / `Chef` / `Proposal` / `CookEntry`, loads and saves `praline.json`. Screens never write files directly.
 - **Shared-cookbook rules**: newest edit wins per recipe, deletions stick, edits to shared recipes travel as proposals (outbox/inbox/answers), My Variant specials are per phone (index 100+k).
 - **Game layer**: `Fame` (levels, feats, favourite weapon), `Classes`, `Tiers`, `Equipment`, `Fate` (d20), `Missions` are pure logic objects with tests.
-- **Party missions**: progress is never stored, only derived: walk both chefs' `CookEntry` history since `Store.missions[world]` (start time, earliest wins on sync) in time order; a spot is done when its recipe (fixed id `mission-<world>-N`) is cooked after party XP ≥ the spot's threshold. Reached spots add their recipe to the grimoire once (`Missions.unlock`, respects tombstones). A new world = templates + `World` entry + painted assets folder with `map.json`.
+- **Party missions**: progress is never stored, only derived: walk both chefs' `CookEntry` history since `Store.missions[world]` (start time, earliest wins on sync) in time order; a spot is done when its recipe (fixed id `mission-<world>-N`) is cooked after party XP ≥ the spot's threshold. Reached spots add their recipe to the grimoire once (`Missions.unlock`, respects tombstones). A new world = a `.praline-world` pack from the map editor (bundled in assets/worlds/ or opened from a file); spot recipe ids are `mission-<world>-<spotId>`.
+- **Map scene (1.4)**: every painted, animated scene is a `SceneView` subclass playing a world pack: the scene owns the camera, memory, items under/over, effects and clock; the subclass draws only its own layer in `drawStage` (`MissionMap`: trail, dusk, spots, lock, party). Housing and other scenes reuse it. Forms, lists and profiles stay plain Views.
 - **Shared UI kit**: Ui.kt (`C` colours, `F` fonts), Ink.kt, Widgets.kt (`FlowLayout`, `RoundPhoto`, `ServingsWheel`, `Slider`, `TimerRing`, portraits).
 
 ## 4. Coding style
@@ -89,10 +91,12 @@ Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, Camera
 | Camera permission denied | scanner can't open; typed code still works | OK |
 | Wi-Fi lost mid-sync | socket error reported, sync tried again on the next nudge or open (read from code, not tested on device) | OK |
 | Other phone on an older protocol | "too old" toast | OK |
-| Low memory (`onTrimMemory`) | `Photos.trim` empties the cache at UI_HIDDEN and above, halves it at RUNNING_LOW; mission map drops its slices when hidden | OK (1.2) |
+| Low memory (`onTrimMemory`) | `Photos.trim` empties the cache at UI_HIDDEN and above, halves it at RUNNING_LOW; `SceneView.trim` drops every open scene's pictures at RUNNING_LOW and above (they reload near the screen) | OK (1.4) |
 | Left home Wi-Fi | server answers "not on your home Wi-Fi", auto-sync and NSD stop; Pair shows the home-first card | OK (1.2) |
 | Location permission denied | Wi-Fi name unreadable, so no sync until allowed (explained on the Home dungeon access card) | OK (1.2) |
 | Recipe file opened while Praliné runs | `onNewIntent` → "Add …?" sheet | OK (1.2) |
+| World file opened (1.4) | `WorldPack.route` peeks for world.json → "Add the world …?" sheet; installs only on tap, replacing the same id; progress kept | OK (1.4) |
+| Leaving the map / map hidden (1.4) | the scene's clock stops (no frame scheduled when detached or its window is hidden); pictures are dropped, never `recycle()`d, so a frame still on the render thread can't hit a recycled bitmap (BlueStacks crash) | OK (1.4) |
 | Back gesture | `onBackPressed` pops the screen stack | move to `OnBackInvokedCallback` before targetSdk 36 |
 | Editing a recipe on both phones at once | newest edit wins | OK (decided) |
 
@@ -111,7 +115,9 @@ Git history starts at 1.1. **No module has been refactored yet.** Snapshot 2026-
 |---|---|---|---|---|---|
 | Editor | 921 | 91 | 1.0, 1.1, 1.2 | never | **Refactor now** (over 600 lines, edited in 3 versions): split ingredients, steps, equipment, photo sections |
 | MainActivity | 837 | 37 | 1.0, 1.1, 1.2 | never | **Refactor now** (over 600 lines, 3 versions): move `Sheet`, `Screen` base, crash and gesture handling out |
-| MissionMap | 556 | new | 1.2 | never | Watch: split drawing layers (scenery, effects, spots, party) when a second world is added |
+| MissionMap | ~290 | 1.4 | 1.2, 1.4 | 1.4 (scenery, effects, memory moved to Scene.kt) | fine |
+| Scene (SceneView, SceneFx) | ~460 | new | 1.4 | never | Watch: move `SceneFx` to its own file if it grows past ~400 lines |
+| WorldPack, Worlds | ~320, ~75 | new | 1.4 | never | fine |
 | Widgets | 477 | 44 | 1.0, 1.1, 1.2 | never | Refactor (3 versions): move `Photos` cache into its own file |
 | Model | 465 | 16 | 1.0, 1.1, 1.2 | never | Refactor (3 versions): split `Store` from data classes |
 | Sync | 454 | 9 | 1.0, 1.1, 1.2 | never | Refactor with the security fix (S1): protocol, transport, discovery |
@@ -137,6 +143,7 @@ Thresholds: recommend a refactor when a module passes **600 lines**, has been ed
 | S8 | ~~Source not in version control~~ | — | Done | Private `praline-app` repo (2026-10-18) |
 | S9 | **Recipe files are untrusted input** (1.2): anyone can send a `.praline` file | RecipeFiles.read/add | Low | Done: zip names checked (flat, safe characters, .jpg/.mp4 only), caps of 80 MB per entry, 200 MB total, 600 entries, 4 MB JSON, 200 recipes; pictures renamed on import; nothing added without the chef's tap. Later: strip EXIF, check images decode before keeping them |
 | S10 | **Location permission** (1.2), asked only to read the Wi-Fi name | HomeWifi | Low (privacy) | No location is read or stored, only the SSID; explained before asking. Store listing must say why |
+| S12 | **World packs are untrusted input** (1.4): anyone can send a `.praline-world` file | WorldPack.read | Low | Done: whole pack ≤ 25 MB (copied with a cap before opening), ≤ 400 entries, entries ≤ 8 MB, names limited to world.json / slices/ / recipes/ / library/ with safe characters (`..`, `/`, `\` refused), world.json ≤ 1 MB, ids checked, numbers clamped, text capped (story 600), pictures decoded shrunk and refused past 2048 px wide, every recipe spot's file must read; installs only on the chef's tap. Later: pack signing if worlds are ever shared publicly |
 | S11 | Mission recipe ids are fixed (`mission-<world>-N`), so a crafted sync payload could overwrite them | Sync merge | Low (needs the pair key) | Covered by S1's fix |
 
 New risks are added here in the same change that introduces them, and named in that version's delivery reply.
@@ -147,7 +154,7 @@ Rules for every bitmap in the app:
 
 1. **Never decode a full-size photo for display.** Decode bounds first (`inJustDecodeBounds`), then `inSampleSize` to the view's size (`Filters.load(file, maxSide)` does this — always use it, never `BitmapFactory.decodeFile` directly).
 2. **One cache**: `Photos` LRU keyed by `name@maxSide`, sized from the device: `ActivityManager.memoryClass / 8` MB, 8–64 MB (1.2).
-3. **Trim on pressure**: `onTrimMemory` and `onLowMemory` call `Photos.trim` (1.2). Mission map slices are decoded RGB_565, only near the screen, and released when the page hides.
+3. **Trim on pressure**: `onTrimMemory` and `onLowMemory` call `Photos.trim` (1.2) and `SceneView.trim` (1.4). Scene slices are decoded RGB_565, shrunk to the screen's width, only near the screen (one screen above and below), and dropped when the page hides. Scene pictures are dropped, never recycled: the render thread may still hold the last frame (1.4).
 4. **Filters work on a preview-sized copy** (≤1280 px), and every intermediate bitmap (blur, bloom, graded) is `recycle()`d as soon as the next one exists. `Filters` recycles its intermediates (1.2).
 5. **Thumbnails are saved once** (Clips thumb) and lists only ever load thumbnails.
 6. Decode off the main thread (`Photos.pool`), deliver on the main thread, and drop the result if the view was recycled.
