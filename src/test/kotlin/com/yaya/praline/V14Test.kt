@@ -287,7 +287,7 @@ class V14Test {
         val ls = Shopping.lines(now)
         val f = ls.first { it.name == "flour" }
         assertEquals(flour.qty!! * 2, f.qty!!, 1e-9)
-        assertEquals(1, ls.count { it.name.equals("salt", true) })
+        assertEquals(1, ls.count { it.name.lowercase() == "salt" })
         assertEquals("Salt (to taste)", ls.first { it.name == "Salt" }.text())
         assertTrue(Shopping.text(now).startsWith("Shopping list"))
         assertTrue(Shopping.text(now).contains("☐ " + f.text()))

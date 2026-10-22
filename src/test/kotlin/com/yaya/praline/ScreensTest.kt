@@ -705,7 +705,7 @@ class ScreensTest {
         a.push(ProfileScreen(a, Store.me, false)); idle(600)
         val root = a.window.decorView
         byDesc(root, "edit chef").performClick(); idle()
-        val meds = all(root).filterIsInstance<Medallion>().filter { it.parent?.let { p -> (p as View).contentDescription?.startsWith("portrait") } == true }
+        val meds = all(root).filterIsInstance<Medallion>().filter { (it.parent as? View)?.contentDescription?.toString()?.startsWith("portrait") == true }
         assertEquals(1, meds.count { it.picked })
         byDesc(root, "portrait 2").performClick(); idle()
         assertTrue(meds[2].picked); assertEquals(1, meds.count { it.picked })
