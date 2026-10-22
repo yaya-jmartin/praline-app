@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Praliné map editor</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand"><span class="logo">Praliné</span><span class="sub">map editor</span></div>
+  <div class="doc"><span id="world-name">…</span><span id="dirty" title="Unsaved changes">•</span><span id="where"></span></div>
+  <nav>
+    <button id="new" title="A new world from the starter template">New</button>
+    <button id="open-folder" title="Open a project folder">Open folder</button>
+    <button id="open-file" title="Open a .praline-map project file, or a .praline-world pack">Open file</button>
+    <button id="save" title="Save (Ctrl+S)">Save</button>
+    <span class="sep"></span>
+    <button id="undo" class="icon" title="Undo (Ctrl+Z)">↶</button>
+    <button id="redo" class="icon" title="Redo (Ctrl+Shift+Z)">↷</button>
+    <span class="sep"></span>
+    <button id="preview" title="See it as on the phone">Preview</button>
+    <button id="export" class="primary" title="Make the .praline-world pack">Export pack</button>
+    <button id="help" class="icon" title="How it works">?</button>
+  </nav>
+</header>
+<main>
+  <aside id="tools">
+    <button id="tool-select" title="Select and move (V)">
+      <svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg><span>Select</span></button>
+    <button id="tool-trail" title="Trail pen (P)">
+      <svg viewBox="0 0 24 24"><path d="M4 20c4-1 5-6 8-9s6-4 8-7" fill="none" stroke-width="2.2"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="4" r="2"/></svg><span>Trail</span></button>
+    <button id="tool-pan" title="Hand (H, or hold Space)">
+      <svg viewBox="0 0 24 24"><path d="M8 11V5.5a1.5 1.5 0 013 0V10m0-4.5v-1a1.5 1.5 0 013 0V10m0-4a1.5 1.5 0 013 0v4m0-1.5a1.5 1.5 0 013 0V15c0 3.5-2.5 6-6 6h-1.5c-2 0-3.5-.8-4.7-2.4L4 14.5c-.6-.9-.3-2 .6-2.4.7-.3 1.5 0 2 .6L8 14.5" fill="none" stroke-width="1.6"/></svg><span>Hand</span></button>
+    <div class="sep"></div>
+    <button id="zoom-in" class="zoom" title="Zoom in (+)">+</button>
+    <button id="zoom-out" class="zoom" title="Zoom out (−)">−</button>
+    <button id="zoom-fit" class="zoom" title="Fit the width (0)">Fit</button>
+  </aside>
+  <section id="map-wrap"><canvas id="map"></canvas></section>
+  <aside id="side"></aside>
+</main>
+<footer><span id="status"></span></footer>
+<div id="toast"></div>
+<script src="js/assets.js"></script>
+<script src="js/zip.js"></script>
+<script src="js/geom.js"></script>
+<script src="js/model.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/draw.js"></script>
+<script src="js/recipe.js"></script>
+<script src="js/io.js"></script>
+<script src="js/canvas.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/preview.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
