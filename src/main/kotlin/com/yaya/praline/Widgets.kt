@@ -221,7 +221,7 @@ object Photos {
 }
 
 /** Center-cropped picture with soft hand-cut corners. Shows a drawn placeholder while empty. */
-class RoundPhoto(c: Context, private val radiusDp: Float = 14f) : View(c) {
+open class RoundPhoto(c: Context, private val radiusDp: Float = 14f) : View(c) {
     var bitmap: Bitmap? = null
         set(v) { field = v; invalidate() }
     var placeholderIcon: String = "bowl"

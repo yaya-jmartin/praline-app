@@ -161,7 +161,7 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         take.onClick { newPhoto() }
         chipsRow.addView(take, lp(WRAP, WRAP).m(r = a.dp(8)))
         if (r.photoOrig.isNotEmpty()) {
-            val light = a.chip("Change the light", false, C.LILAC, "spark", 12f)
+            val light = a.chip("Light and framing", false, C.LILAC, "spark", 12f)
             light.onClick { recast() }
             chipsRow.addView(light)
         }
@@ -407,19 +407,19 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
     // ---- photo ------------------------------------------------------------------
     private fun newPhoto() {
         a.pickPhoto("Recipe photo") { f ->
-            if (f != null) a.push(PhotoScreen(a, f, r.filter.ifEmpty { "torch" }, r.strength) { orig, filtered, key, str ->
-                r.photoOrig = orig; r.photo = filtered; r.filter = key; r.strength = str
+            if (f != null) a.push(PhotoScreen(a, f, r.filter.ifEmpty { "torch" }, r.strength, { orig, filtered, key, str, fr ->
+                r.photoOrig = orig; r.photo = filtered; r.filter = key; r.strength = str; fr.applyTo(r)
                 rebuild()
-            })
+            }))
         }
     }
 
     private fun recast() {
         val f = Store.photoFile(a, r.photoOrig)
-        a.push(PhotoScreen(a, f, r.filter, r.strength) { orig, filtered, key, str ->
-            r.photoOrig = orig; r.photo = filtered; r.filter = key; r.strength = str
+        a.push(PhotoScreen(a, f, r.filter, r.strength, { orig, filtered, key, str, fr ->
+            r.photoOrig = orig; r.photo = filtered; r.filter = key; r.strength = str; fr.applyTo(r)
             rebuild()
-        })
+        }, PhotoScreen.Frame.of(r)))
     }
 
     // ---- save / leave -----------------------------------------------------------

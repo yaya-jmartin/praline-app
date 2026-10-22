@@ -344,11 +344,11 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
 
     private fun changePhoto() {
         a.pickPhoto("Recipe photo") { f ->
-            if (f != null) a.push(PhotoScreen(a, f, r.filter.ifEmpty { "torch" }, r.strength) { orig, filtered, key, str ->
-                r.photoOrig = orig; r.photo = filtered; r.filter = key; r.strength = str
+            if (f != null) a.push(PhotoScreen(a, f, r.filter.ifEmpty { "torch" }, r.strength, { orig, filtered, key, str, fr ->
+                r.photoOrig = orig; r.photo = filtered; r.filter = key; r.strength = str; fr.applyTo(r)
                 Store.upsert(a, r)
                 if (Share.isShared(r)) { Share.proposeMain(a, r); a.toast("New photo sent to ${Share.peerName()} to accept"); Sync.nudge(a) }
-            })
+            }))
         }
     }
 

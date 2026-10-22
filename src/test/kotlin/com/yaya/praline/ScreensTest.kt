@@ -252,7 +252,8 @@ class ScreensTest {
         val shotFile = File(a.cacheDir, "shots/test.jpg"); shotFile.parentFile!!.mkdirs()
         java.nio.file.Files.copy(repoFile("src/test/resources/photos/cookies.jpg").toPath(), shotFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         var got: Array<String>? = null
-        val p = PhotoScreen(a, shotFile, "torch", 0.8f) { o, f, k, s -> got = arrayOf(o, f, k, s.toString()) }
+        var frame: PhotoScreen.Frame? = null
+        val p = PhotoScreen(a, shotFile, "torch", 0.8f, { o, f, k, s, fr -> got = arrayOf(o, f, k, s.toString()); frame = fr })
         a.push(p); idle(600)
         for (i in 0 until 40) { Thread.sleep(50); idle(50) }
         val root = a.window.decorView
@@ -261,6 +262,21 @@ class ScreensTest {
         tap(root, "Moonlit")
         for (i in 0 until 20) { Thread.sleep(50); idle(50) }
         shot(root, "14-darkroom-moon")
+        // 1.4: the preview is the recipe page's exact crop; drag and pinch frame it
+        val fp = all(root).filterIsInstance<FramePhoto>()[0]
+        val ratio = fp.width.toFloat() / fp.height
+        assertEquals(a.resources.displayMetrics.widthPixels.toFloat() / (a.dp(300) + a.insetTop), ratio, 0.05f)
+        fp.zoom = 2f; fp.settle()
+        fp.pan(fp.width / 4f, 0f)
+        assertTrue(fp.focusX < 0.5f)
+        fp.pan(-10_000f, -10_000f)
+        // never past the edge: the picture still fills the frame
+        val b = fp.bitmap!!
+        val pts = floatArrayOf(0f, 0f, b.width.toFloat(), b.height.toFloat())
+        Framing.matrix(b.width, b.height, fp.width.toFloat(), fp.height.toFloat(), fp.focusX, fp.focusY, fp.zoom).mapPoints(pts)
+        assertTrue(pts[2] >= fp.width - 1f && pts[3] >= fp.height - 1f)
+        assertTrue(all(root).filterIsInstance<RoundPhoto>().any { it !is FramePhoto && it.zoom == 2f && it.focusX == fp.focusX })
+        shot(root, "14b-darkroom-framed")
         tap(root, "Keep it")
         for (i in 0 until 40) { Thread.sleep(50); idle(50); if (got != null) break }
         val g = got!!
@@ -268,6 +284,7 @@ class ScreensTest {
         assertTrue(Store.photoFile(a, g[0]).exists()); assertTrue(Store.photoFile(a, g[1]).exists())
         assertTrue(g[0] != g[1])
         assertFalse(a.top() is PhotoScreen)
+        assertEquals(2f, frame!!.zoom, 0.001f); assertTrue(frame!!.x > 0.5f)
     }
 
     @Test fun profilesSheetsAndParty() {
