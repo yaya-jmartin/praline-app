@@ -46,6 +46,27 @@ class PairScreen(a: MainActivity) : Screen(a) {
         return sv
     }
 
+    /**
+     * A chef from another household (1.4.1): the phones only ever talk over a Wi-Fi they share, with no server in
+     * between, so this says how to pair and keep in touch from two homes, and what doesn't work yet.
+     */
+    private fun outsideChef(col: android.widget.LinearLayout) {
+        val card = a.card(C.MINT, 14, 14)
+        card.contentDescription = "a chef from another home"
+        card.addView(a.script("A chef from another home", 28f))
+        card.addView(a.note("Praliné phones talk straight to each other over a Wi-Fi they share. There's no server in between, so two phones on different Wi-Fi networks can't sync yet.", 12.5f), lp(MATCH, WRAP).m(t = a.dp(2)))
+        card.addView(a.body("To invite a friend from another home", 13.5f, C.INK, 700), lp(MATCH, WRAP).m(t = a.dp(10)))
+        for (line in arrayOf(
+            "1. Meet on the same Wi-Fi, at your place or theirs.",
+            "2. On both phones, turn the home lock off (Settings → Home dungeon access). With it on, a phone only syncs on its own home Wi-Fi.",
+            "3. Pair once here: show your code, they scan it.",
+            "4. From then on your cookbook, chefs and missions catch up whenever both phones are on the same Wi-Fi with Praliné open, like at your next dinner together.")) {
+            card.addView(a.note(line, 12.5f), lp(MATCH, WRAP).m(t = a.dp(4)))
+        }
+        card.addView(a.note("Far apart? Send a single recipe as a file from its page (the send button); they open it in Praliné.", 12.5f), lp(MATCH, WRAP).m(t = a.dp(10)))
+        col.addView(card, lp(MATCH, WRAP).m(t = a.dp(22)))
+    }
+
     /** Before pairing: this Wi-Fi has to be the saved home one. */
     private fun homeFirst(col: android.widget.LinearLayout) {
         val home = HomeWifi.saved(a)
@@ -62,6 +83,7 @@ class PairScreen(a: MainActivity) : Screen(a) {
         off.onClick { HomeWifi.setLocked(a, false); Sync.announce(a); rebuild() }
         card.addView(off, lp(WRAP, WRAP).m(t = a.dp(8)))
         col.addView(card, lp(MATCH, WRAP).m(t = a.dp(6)))
+        outsideChef(col)
     }
 
     private fun choose(col: android.widget.LinearLayout) {
@@ -96,6 +118,7 @@ class PairScreen(a: MainActivity) : Screen(a) {
         type.addView(r3)
         type.onClick { mode = 4; rebuild() }
         col.addView(type, lp(MATCH, WRAP).m(t = a.dp(14)))
+        outsideChef(col)
     }
 
     private fun showCode(col: android.widget.LinearLayout) {

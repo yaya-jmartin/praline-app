@@ -428,6 +428,14 @@ object Store {
         return o
     }
 
+    /** What the chefs can see, without the sync bookkeeping (addresses, last-sync times): equal stamps mean nothing to redraw. */
+    fun contentStamp(): Int {
+        val o = toJson()
+        val pz = JSONArray(); for (p in peers) pz.put(p.chefId + "|" + p.key + "|" + p.confirmed)
+        o.put("peers", pz)
+        return o.toString().hashCode()
+    }
+
     fun save(c: Context) {
         version++
         val f = file(c)

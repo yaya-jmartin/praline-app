@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     private var permCallback: ((Boolean) -> Unit)? = null
 
     private var ticks = 0
+    private var syncedStamp = 0
     private val ticker = object : Runnable {
         override fun run() {
             Timers.finishAllDue(this@MainActivity)
@@ -87,7 +88,9 @@ class MainActivity : Activity() {
         Resume.restore(this, savedInstanceState != null)
         Sync.onSynced = object : () -> Unit {
             override fun invoke() {
-                for (s in stack) s.onSynced()
+                // live sync runs every 15 s: pages only redraw when something the chefs can see changed
+                val stamp = try { Store.contentStamp() } catch (e: Exception) { syncedStamp + 1 }
+                if (stamp != syncedStamp || Sync.news.isNotEmpty()) { syncedStamp = stamp; for (s in stack) s.onSynced() }
                 // tell the chef what the other chef did with their changes, one line at a time
                 var delay = 0L
                 for (n in ArrayList(Sync.news)) { handler.postDelayed(object : Runnable { override fun run() { toast(n) } }, delay); delay += 2900 }
@@ -217,6 +220,8 @@ class MainActivity : Activity() {
         val prev = top()
         val d = Math.max(0f, Math.min(w, dist))
         if (phase == 0) {
+            // the finger takes over from any slide still running, which would otherwise fight it frame by frame
+            s.root.animate().cancel(); prev?.root?.animate()?.cancel()
             s.root.translationX = -w + d
             prev?.root?.translationX = d * 0.25f
             return
@@ -248,6 +253,7 @@ class MainActivity : Activity() {
         val w = Math.max(1, host.width).toFloat()
         val d = Math.max(0f, Math.min(w, dist))
         if (phase == 0) {
+            s.root.animate().cancel(); prev.root.animate().cancel()
             prev.root.visibility = View.VISIBLE
             s.root.translationX = -d
             prev.root.translationX = w * 0.25f * (1f - d / w)
