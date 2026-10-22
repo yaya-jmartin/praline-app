@@ -227,6 +227,10 @@ class RoundPhoto(c: Context, private val radiusDp: Float = 14f) : View(c) {
     var placeholderIcon: String = "bowl"
     var placeholderColor: Int = C.TANG
     var outline = false
+    /** The point of the picture kept in the middle (0..1) and the zoom over a plain fill (1 = fill). */
+    var focusX = 0.5f
+    var focusY = 0.5f
+    var zoom = 1f
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val pBg = Ink.fillPaint(0xFFF4E3C8.toInt())
     private val pInk = Ink.inkPaint(c, c.dpf(2f))
@@ -242,6 +246,12 @@ class RoundPhoto(c: Context, private val radiusDp: Float = 14f) : View(c) {
         Photos.load(context, photoName, maxSide) { b -> if (name == photoName) bitmap = b }
     }
 
+    /** A recipe's photo, framed the way its chef framed it. */
+    fun showRecipe(r: Recipe, maxSide: Int = 720) {
+        focusX = r.focusX; focusY = r.focusY; zoom = r.zoom
+        show(r.photo, maxSide)
+    }
+
     override fun onDraw(canvas: Canvas) {
         val w = width.toFloat(); val h = height.toFloat()
         val r = context.dpf(radiusDp)
@@ -251,9 +261,7 @@ class RoundPhoto(c: Context, private val radiusDp: Float = 14f) : View(c) {
         canvas.clipPath(clip)
         val b = bitmap
         if (b != null) {
-            val s = Math.max(w / b.width, h / b.height)
-            val m = Matrix(); m.postScale(s, s); m.postTranslate((w - b.width * s) / 2f, (h - b.height * s) / 2f)
-            canvas.drawBitmap(b, m, paint)
+            canvas.drawBitmap(b, Framing.matrix(b.width, b.height, w, h, focusX, focusY, zoom), paint)
         } else {
             canvas.drawRect(0f, 0f, w, h, pBg)
             var ic = holder
@@ -265,6 +273,18 @@ class RoundPhoto(c: Context, private val radiusDp: Float = 14f) : View(c) {
         }
         canvas.restore()
         if (outline) canvas.drawPath(clip, pInk)
+    }
+}
+
+/** Fitting a framed photo into any box: fill it, zoom, and keep the focus point as near the middle as the edges allow. */
+object Framing {
+    fun matrix(bw: Int, bh: Int, w: Float, h: Float, fx: Float, fy: Float, zoom: Float): Matrix {
+        val s = Math.max(w / bw, h / bh) * Math.max(1f, zoom)
+        val dw = bw * s; val dh = bh * s
+        val tx = Math.max(w - dw, Math.min(0f, w / 2f - fx * dw))
+        val ty = Math.max(h - dh, Math.min(0f, h / 2f - fy * dh))
+        val m = Matrix(); m.postScale(s, s); m.postTranslate(tx, ty)
+        return m
     }
 }
 
@@ -314,9 +334,7 @@ class ArchPortrait(c: Context, var portrait: Int) : View(c) {
         val b = Portraits.get(context, portrait)
         canvas.save(); canvas.clipPath(wob)
         if (b != null) {
-            val s = Math.max(w / b.width, h / b.height)
-            val m = Matrix(); m.postScale(s, s); m.postTranslate((w - b.width * s) / 2f, (h - b.height * s) / 2f)
-            canvas.drawBitmap(b, m, paint)
+            canvas.drawBitmap(b, Framing.matrix(b.width, b.height, w, h, 0.5f, 0.5f, 1f), paint)
         } else canvas.drawColor(0xFF2B2443.toInt())
         canvas.restore()
         canvas.drawPath(wob, pInk)

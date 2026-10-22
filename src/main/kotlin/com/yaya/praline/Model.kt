@@ -67,7 +67,11 @@ class Variant(var name: String, val ingredients: MutableList<Ingredient> = Array
 
 class Recipe(var id: String = UUID.randomUUID().toString()) {
     var title = ""
-    var dessert = false
+    /** [MEAL], [DESSERT] or [BEVERAGE] (1.4); older files only say dessert true or false. */
+    var kind = MEAL
+    var dessert: Boolean
+        get() = kind == DESSERT
+        set(v) { kind = if (v) DESSERT else if (kind == DESSERT) MEAL else kind }
     var cls = "paladin"
     var tier = "B"
     var effort = 2
@@ -77,6 +81,10 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
     var photoOrig = ""    // untouched shot, so the filter can be changed later
     var filter = ""
     var strength = 0.8f
+    /** Framing of the photo (1.4): the point kept in the middle (0..1 across and down) and how far it is zoomed in (1 = fill). */
+    var focusX = 0.5f
+    var focusY = 0.5f
+    var zoom = 1f
     var lastCooked = 0L
     /** Fame for finishing it; 0 = worked out from the effort. */
     var fame = 0
@@ -99,10 +107,11 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
 
     fun toJson(): JSONObject {
         val o = JSONObject()
-        o.put("id", id); o.put("title", title); o.put("dessert", dessert); o.put("cls", cls); o.put("tier", tier)
+        o.put("id", id); o.put("title", title); o.put("kind", kind); o.put("dessert", dessert); o.put("cls", cls); o.put("tier", tier)
         o.put("effort", effort); o.put("time", timeMin); o.put("serv", servings); o.put("photo", photo); o.put("orig", photoOrig)
         o.put("filter", filter); o.put("str", strength.toDouble()); o.put("cooked", lastCooked); o.put("created", created); o.put("updated", updated)
         if (fame > 0) o.put("fame", fame)
+        if (focusX != 0.5f || focusY != 0.5f || zoom != 1f) { o.put("fx", focusX.toDouble()); o.put("fy", focusY.toDouble()); o.put("zoom", zoom.toDouble()) }
         val eq = JSONArray(); for (x in equipment) eq.put(x); o.put("equip", eq)
         if (world.isNotEmpty()) o.put("world", world)
         if (equipCount.isNotEmpty()) { val n = JSONObject(); for ((k, c) in equipCount) if (equipment.contains(k) && c > 1) n.put(k, c); o.put("equipN", n) }
@@ -122,13 +131,29 @@ class Recipe(var id: String = UUID.randomUUID().toString()) {
     }
 
     companion object {
+        const val MEAL = "meal"
+        const val DESSERT = "dessert"
+        const val BEVERAGE = "beverage"
+        const val MAX_ZOOM = 4f
+        val KINDS = arrayOf(MEAL, DESSERT, BEVERAGE)
+
+        /** The recipe's kind, reading 1.3 files (dessert true/false) as well. */
+        fun kindOf(o: JSONObject): String {
+            val k = o.optString("kind")
+            if (k in KINDS) return k
+            return if (o.optBoolean("dessert")) DESSERT else MEAL
+        }
+
+        private fun clamp01(d: Double): Float = if (d.isNaN()) 0.5f else Math.max(0.0, Math.min(1.0, d)).toFloat()
+
         fun fromJson(o: JSONObject): Recipe {
             val r = Recipe(o.getString("id"))
-            r.title = o.optString("title"); r.dessert = o.optBoolean("dessert"); r.cls = o.optString("cls", "paladin")
+            r.title = o.optString("title"); r.kind = kindOf(o); r.cls = o.optString("cls", "paladin")
             r.tier = o.optString("tier", "B"); r.effort = o.optInt("effort", 2); r.timeMin = o.optInt("time", 30)
             r.servings = Math.max(1, o.optInt("serv", 4)); r.photo = o.optString("photo"); r.photoOrig = o.optString("orig")
             r.filter = o.optString("filter"); r.strength = o.optDouble("str", 0.8).toFloat(); r.lastCooked = o.optLong("cooked")
             r.created = o.optLong("created"); r.updated = o.optLong("updated"); r.fame = o.optInt("fame")
+            r.focusX = clamp01(o.optDouble("fx", 0.5)); r.focusY = clamp01(o.optDouble("fy", 0.5)); r.zoom = Math.max(1f, Math.min(MAX_ZOOM, o.optDouble("zoom", 1.0).toFloat()))
             val eq = o.optJSONArray("equip"); if (eq != null) for (k in 0 until eq.length()) r.equipment.add(eq.getString(k))
             r.world = o.optString("world")
             val en = o.optJSONObject("equipN"); if (en != null) for (k in en.keys()) r.setCount(k, en.optInt(k, 1))
@@ -205,12 +230,93 @@ class Chef(var id: String = UUID.randomUUID().toString()) {
     }
 }
 
+/**
+ * A phone this one paired with directly (1.4: up to three). Its chef lives in [Store.chefs] under [chefId].
+ * [key] is the code used to pair; [secret] the long secret both phones derived from it; [confirmed] once the
+ * other phone has synced with the secret, so the code is no longer accepted.
+ */
+class Peer(var chefId: String = "") {
+    var key = ""
+    var secret = ""
+    var confirmed = false
+    var host = ""
+    var port = 0
+    /** Last time a sync with this phone went through. */
+    var lastSync = 0L
+
+    fun toJson(): JSONObject {
+        val o = JSONObject(); o.put("chef", chefId); o.put("key", key); o.put("secret", secret); o.put("ok", confirmed)
+        o.put("host", host); o.put("port", port); o.put("last", lastSync); return o
+    }
+    companion object {
+        fun fromJson(o: JSONObject): Peer {
+            val p = Peer(o.optString("chef")); p.key = o.optString("key"); p.secret = o.optString("secret"); p.confirmed = o.optBoolean("ok")
+            p.host = o.optString("host"); p.port = o.optInt("port"); p.lastSync = o.optLong("last"); return p
+        }
+    }
+}
+
+/** Who joined a party mission and when, and who was invited (1.4). Merged across phones: earliest join wins, nothing is lost. */
+class MissionParty {
+    /** Chef id -> when they joined. */
+    val members = HashMap<String, Long>()
+    /** Chef id -> when they were invited. */
+    val invited = HashMap<String, Long>()
+    /** Chefs who said no thanks. */
+    val declined = HashSet<String>()
+    var by = ""
+    /** Missions started before 1.4: until this time every cook counted at the old one-chef distances. 0 = none. */
+    var legacyUntil = 0L
+
+    fun toJson(): JSONObject {
+        val o = JSONObject()
+        if (legacyUntil > 0L) o.put("legacy", legacyUntil)
+        val m = JSONObject(); for ((k, v) in members) m.put(k, v); o.put("members", m)
+        val i = JSONObject(); for ((k, v) in invited) i.put(k, v); o.put("invited", i)
+        val d = JSONArray(); for (x in declined) d.put(x); o.put("declined", d)
+        o.put("by", by)
+        return o
+    }
+
+    fun merge(o: JSONObject) {
+        val m = o.optJSONObject("members") ?: JSONObject()
+        for (k in m.keys()) { val t = m.optLong(k); val mine = members[k]; if (t > 0L && (mine == null || t < mine)) members[k] = t }
+        val i = o.optJSONObject("invited") ?: JSONObject()
+        for (k in i.keys()) { val t = i.optLong(k); val mine = invited[k]; if (t > 0L && (mine == null || t < mine)) invited[k] = t }
+        val d = o.optJSONArray("declined") ?: JSONArray(); for (k in 0 until d.length()) declined.add(d.getString(k))
+        if (by.isEmpty()) by = o.optString("by")
+        val lg = o.optLong("legacy"); if (lg > 0L && (legacyUntil == 0L || lg < legacyUntil)) legacyUntil = lg
+    }
+
+    companion object { fun fromJson(o: JSONObject): MissionParty { val p = MissionParty(); p.merge(o); return p } }
+}
+
 /** Everything the app keeps, in one JSON file plus a photos folder. */
 object Store {
     var loaded = false
+    /** Goes up on every save, so a page can tell whether anything changed since it was drawn. */
+    @Volatile var version = 0L
     val recipes: MutableList<Recipe> = ArrayList()
     var me = Chef()
-    var peer: Chef? = null
+    /** Phones paired directly with this one (1.4: up to three). */
+    val peers: MutableList<Peer> = ArrayList()
+    /** Every other chef of the party, whether paired here or met through another phone. Read-only here. */
+    val chefs = LinkedHashMap<String, Chef>()
+    /** The first other chef, for places that show one (1.3 had exactly one). */
+    val peer: Chef? get() = party().firstOrNull()
+    /** The other chefs of the party, paired ones first. */
+    fun party(): List<Chef> {
+        val out = ArrayList<Chef>()
+        for (p in peers) { val ch = chefs[p.chefId]; if (ch != null && !out.contains(ch)) out.add(ch) }
+        for (ch in chefs.values) if (!out.contains(ch) && ch.id != me.id) out.add(ch)
+        return out
+    }
+    fun chef(id: String): Chef? = if (id == me.id) me else chefs[id]
+    fun paired(): Boolean = peers.any { it.secret.isNotEmpty() }
+    /** A party has four chefs at most. */
+    const val PARTY_MAX = 4
+    /** Mission parties (1.4): world id -> who joined. */
+    val parties = HashMap<String, MissionParty>()
     /** Day key "2026-10-19" -> "recipeId|variantIndex". */
     val plan = HashMap<String, String>()
     var planUpdated = 0L
@@ -218,21 +324,18 @@ object Store {
     val tombstones = HashMap<String, Long>()
     /** Party missions: world id -> when it started. */
     val missions = HashMap<String, Long>()
-    var pairKey = ""
-    /** The long secret the two phones share since pairing (base64); the pair code is only used to set it up. */
-    var pairSecret = ""
-    /** True once the other phone has synced with [pairSecret], so the short pair code is no longer accepted. */
-    var secretConfirmed = false
-    var peerHost = ""
-    var peerPort = 0
     /** This phone's own My Variant specials, per recipe id. Never synced as part of the cookbook. */
     val mine = HashMap<String, MutableList<Variant>>()
-    /** Changes the other chef sent that wait for an answer here. */
+    /** Changes another chef sent that wait for an answer here. */
     val inbox: MutableList<Proposal> = ArrayList()
-    /** Changes sent from here that wait for the other chef's answer. */
+    /** Changes sent from here that wait for the other chefs' answers. */
     val outbox: MutableList<Proposal> = ArrayList()
-    /** Proposal id -> "accepted" / "refused", told back to the other phone. */
-    val answers = HashMap<String, String>()
+    /** Other chefs' changes this phone knows of, passed on to the rest of the party until everyone answered. */
+    val relay: MutableList<Proposal> = ArrayList()
+    /** "proposalId|chefId" -> "accepted" / "refused": every chef's answers, passed around the party. */
+    val votes = HashMap<String, String>()
+    /** Answers already told to this chef, so each is said once. */
+    val told = HashSet<String>()
     /** Proposal ids already received, so one isn't offered twice. */
     val handled = HashSet<String>()
     /** Recipe ids the other phone already has: edits to these become proposals. */
@@ -258,8 +361,8 @@ object Store {
     }
 
     private fun clearAll() {
-        recipes.clear(); plan.clear(); tombstones.clear(); missions.clear(); peer = null
-        mine.clear(); inbox.clear(); outbox.clear(); answers.clear(); handled.clear(); peerSeen.clear()
+        recipes.clear(); plan.clear(); tombstones.clear(); missions.clear(); peers.clear(); chefs.clear(); parties.clear()
+        mine.clear(); inbox.clear(); outbox.clear(); relay.clear(); votes.clear(); told.clear(); handled.clear(); peerSeen.clear()
     }
 
     fun fromJson(o: JSONObject) {
@@ -267,14 +370,18 @@ object Store {
         val r = o.optJSONArray("recipes") ?: JSONArray()
         for (k in 0 until r.length()) recipes.add(Recipe.fromJson(r.getJSONObject(k)))
         me = if (o.has("me")) Chef.fromJson(o.getJSONObject("me")) else Chef()
-        peer = if (o.has("peer")) Chef.fromJson(o.getJSONObject("peer")) else null
+        val cs = o.optJSONArray("chefs") ?: JSONArray()
+        for (k in 0 until cs.length()) { val ch = Chef.fromJson(cs.getJSONObject(k)); if (ch.id != me.id) chefs[ch.id] = ch }
+        val ps0 = o.optJSONArray("peers") ?: JSONArray()
+        for (k in 0 until ps0.length()) peers.add(Peer.fromJson(ps0.getJSONObject(k)))
+        val pa = o.optJSONObject("parties") ?: JSONObject()
+        for (k in pa.keys()) parties[k] = MissionParty.fromJson(pa.getJSONObject(k))
         val p = o.optJSONObject("plan") ?: JSONObject()
         val it = p.keys(); while (it.hasNext()) { val k = it.next(); plan[k] = p.getString(k) }
         planUpdated = o.optLong("planUpdated")
         Missions.merge(o.optJSONObject("missions"))
         val t = o.optJSONObject("tomb") ?: JSONObject()
         val it2 = t.keys(); while (it2.hasNext()) { val k = it2.next(); tombstones[k] = t.getLong(k) }
-        pairKey = o.optString("pairKey"); pairSecret = o.optString("pairSecret"); secretConfirmed = o.optBoolean("secretOk"); peerHost = o.optString("peerHost"); peerPort = o.optInt("peerPort")
         val m = o.optJSONObject("mine") ?: JSONObject()
         val it3 = m.keys()
         while (it3.hasNext()) {
@@ -284,33 +391,40 @@ object Store {
         }
         val ib = o.optJSONArray("inbox") ?: JSONArray(); for (i in 0 until ib.length()) inbox.add(Proposal.fromJson(ib.getJSONObject(i)))
         val ob = o.optJSONArray("outbox") ?: JSONArray(); for (i in 0 until ob.length()) outbox.add(Proposal.fromJson(ob.getJSONObject(i)))
-        val an = o.optJSONObject("answers") ?: JSONObject()
-        val it4 = an.keys(); while (it4.hasNext()) { val k = it4.next(); answers[k] = an.getString(k) }
+        val rl = o.optJSONArray("relay") ?: JSONArray(); for (i in 0 until rl.length()) relay.add(Proposal.fromJson(rl.getJSONObject(i)))
+        val vo = o.optJSONObject("votes") ?: JSONObject()
+        for (k in vo.keys()) votes[k] = vo.getString(k)
+        val tl = o.optJSONArray("told") ?: JSONArray(); for (i in 0 until tl.length()) told.add(tl.getString(i))
         val hd = o.optJSONArray("handled") ?: JSONArray(); for (i in 0 until hd.length()) handled.add(hd.getString(i))
         val ps = o.optJSONArray("peerSeen") ?: JSONArray(); for (i in 0 until ps.length()) peerSeen.add(ps.getString(i))
+        Migrate.from13(o)
     }
 
     fun toJson(): JSONObject {
         val o = JSONObject()
         val r = JSONArray(); for (x in recipes) r.put(x.toJson()); o.put("recipes", r)
         o.put("me", me.toJson())
-        val pe = peer; if (pe != null) o.put("peer", pe.toJson())
+        val cs = JSONArray(); for (ch in chefs.values) cs.put(ch.toJson()); o.put("chefs", cs)
+        val pz = JSONArray(); for (p in peers) pz.put(p.toJson()); o.put("peers", pz)
+        val pa = JSONObject(); for ((k, v) in parties) pa.put(k, v.toJson()); o.put("parties", pa)
         val p = JSONObject(); for ((k, v) in plan) p.put(k, v); o.put("plan", p); o.put("planUpdated", planUpdated)
         val t = JSONObject(); for ((k, v) in tombstones) t.put(k, v); o.put("tomb", t)
         o.put("missions", Missions.toJson())
-        o.put("pairKey", pairKey); o.put("pairSecret", pairSecret); o.put("secretOk", secretConfirmed); o.put("peerHost", peerHost); o.put("peerPort", peerPort)
         val m = JSONObject()
         for ((k, l) in mine) { val arr = JSONArray(); for (v in l) arr.put(v.toJson()); if (arr.length() > 0) m.put(k, arr) }
         o.put("mine", m)
         val ib = JSONArray(); for (x in inbox) ib.put(x.toJson()); o.put("inbox", ib)
         val ob = JSONArray(); for (x in outbox) ob.put(x.toJson()); o.put("outbox", ob)
-        val an = JSONObject(); for ((k, v) in answers) an.put(k, v); o.put("answers", an)
+        val rl = JSONArray(); for (x in relay) rl.put(x.toJson()); o.put("relay", rl)
+        val vo = JSONObject(); for ((k, v) in votes) vo.put(k, v); o.put("votes", vo)
+        val tl = JSONArray(); for (x in told) tl.put(x); o.put("told", tl)
         val hd = JSONArray(); for (x in handled) hd.put(x); o.put("handled", hd)
         val ps = JSONArray(); for (x in peerSeen) ps.put(x); o.put("peerSeen", ps)
         return o
     }
 
     fun save(c: Context) {
+        version++
         val f = file(c)
         val tmp = File(c.filesDir, "praline.json.tmp")
         tmp.writeText(toJson().toString())
@@ -344,6 +458,7 @@ object Store {
         for ((_, l) in mine) for (v in l) for (st in v.steps) { used.add(st.hint); used.add(st.video); used.add(st.video + ".jpg") }
         for (p in inbox) used.addAll(p.photos())
         for (p in outbox) used.addAll(p.photos())
+        for (p in relay) used.addAll(p.photos())
         val files = photosDir(c).listFiles() ?: return
         for (f in files) if (f.name !in used && System.currentTimeMillis() - f.lastModified() > 60_000L) f.delete()
     }
@@ -365,7 +480,7 @@ object Store {
         save(c)
     }
 
-    fun reset() { loaded = false; clearAll(); me = Chef(); pairKey = ""; pairSecret = ""; secretConfirmed = false; peerHost = ""; peerPort = 0; planUpdated = 0L }
+    fun reset() { loaded = false; clearAll(); me = Chef(); planUpdated = 0L }
 }
 
 /** Quantities: parsing typed lines, scaling, and pretty fractions. */

@@ -12,9 +12,9 @@ fun MainActivity.recipeCard(r: Recipe, small: Boolean = false): LinearLayout {
     val cls = Classes.get(r.cls)
     val card = card(cls.color, 7, 7)
     val photo = RoundPhoto(this, 13f)
-    photo.placeholderIcon = if (r.dessert) "potion" else "bowl"
+    photo.placeholderIcon = Kinds.icon(r.kind)
     photo.placeholderColor = cls.color
-    photo.show(r.photo, 480)
+    photo.showRecipe(r, 480)
     card.addView(photo, lp(MATCH, dp(if (small) 70 else 104)))
     card.addView(script(r.title.ifEmpty { "Untitled" }, if (small) 21f else 26f).single(), lp(MATCH, WRAP).m(t = dp(2)))
     if (!small) {
@@ -47,6 +47,7 @@ class HomeScreen(a: MainActivity) : Screen(a) {
     private var bottomBar: View? = null
 
     override fun build(): View {
+        drawnAt = Store.version
         // a swipe to the right brings Settings in from the left, as in Pistachio
         val frame = SwipeCatcher(a, 1) { d, p, v -> a.slideIn({ SettingsScreen(a) }, d, p, v) }
         val sv = ScrollView(a)
@@ -56,30 +57,45 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         sv.addView(col)
         frame.addView(sv, FrameLayout.LayoutParams(MATCH, MATCH))
 
-        // header: lettering + chef medallion
-        val head = FrameLayout(a)
+        // header: lettering on the left, the party's medallions on the right, side by side so neither covers the other
+        val head = a.hbox(); head.gravity = Gravity.TOP
         val titles = a.vbox()
-        titles.addView(a.script("Praliné", 66f), lp(WRAP, WRAP).m(l = -a.dp(6)))
+        val logo = a.script("Praliné", 66f)
+        logo.maxLines = 1
+        // the script's last letter leans out past its box: room on the right so the accent is never cut
+        logo.setPadding(0, 0, a.dp(14), 0)
+        logo.contentDescription = "Praliné"
+        titles.addView(logo, lp(WRAP, WRAP).m(l = -a.dp(6)))
         titles.addView(a.note("the grimoire of ${Store.me.name}'s kitchen", 13f), lp(WRAP, WRAP).m(l = a.dp(16), t = -a.dp(8)))
-        head.addView(titles, flp(WRAP, WRAP))
+        head.addView(titles, lp(0, WRAP, 1f))
         val party = a.vbox(); party.gravity = Gravity.CENTER_HORIZONTAL
         val fame = Fame.total(Store.me); val lvl = Fame.level(fame)
         val med = Medallion(a, Store.me.portrait)
         val medBox = FrameLayout(a)
-        val peer = Store.peer
-        if (peer != null) {
-            val pm = Medallion(a, peer.portrait, C.MINT)
-            medBox.addView(pm, flp(a.dp(40), a.dp(40), Gravity.START or Gravity.BOTTOM))
-            pm.onClick { a.push(ProfileScreen(a, peer, true)) }
+        // the other chefs as small medallions tucked behind this chef's, up to three
+        val others = Store.party().take(Store.PARTY_MAX - 1)
+        for ((k, ch) in others.withIndex()) {
+            val pm = Medallion(a, ch.portrait, C.MINT)
+            pm.contentDescription = "chef ${ch.name}"
+            medBox.addView(pm, flp(a.dp(40), a.dp(40), Gravity.START or Gravity.BOTTOM).m(l = a.dp(26 * (others.size - 1 - k))))
+            pm.onClick { a.push(ProfileScreen(a, ch, true)) }
         }
         medBox.addView(med, flp(a.dp(68), a.dp(68), Gravity.END or Gravity.TOP))
         med.onClick { a.push(ProfileScreen(a, Store.me, false)) }
-        party.addView(medBox, lp(a.dp(if (peer != null) 96 else 68), a.dp(68)))
+        party.addView(medBox, lp(a.dp(if (others.isNotEmpty()) 68 + 28 + 26 * (others.size - 1) else 68), a.dp(68)))
         val lv = a.chip("Lv $lvl", true, C.BUTTER, null, 11f)
         party.addView(lv, lp(WRAP, WRAP).m(t = -a.dp(10)))
         lv.onClick { a.push(ProfileScreen(a, Store.me, false)) }
-        head.addView(party, flp(WRAP, WRAP, Gravity.END or Gravity.TOP).m(t = a.dp(8)))
+        head.addView(party, lp(WRAP, WRAP).m(t = a.dp(8), l = a.dp(6)))
+        // a bigger party leaves less room: the lettering shrinks to fit instead of running under the medallions
+        val partyW = if (others.isNotEmpty()) 68 + 28 + 26 * (others.size - 1) else 68
+        val room = a.resources.displayMetrics.widthPixels - a.dp(44 + partyW + 6 + 14 - 6)
+        val need = logo.paint.measureText("Praliné")
+        if (need > room && need > 0f) logo.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, logo.textSize * room / need)
         col.addView(head)
+
+        // mission invites waiting for this chef
+        for (w in Missions.invites()) col.addView(MissionInvite.card(a, w) { rebuild() }, lp(MATCH, WRAP).m(t = a.dp(14)))
 
         // fame
         val fr = a.hbox()
@@ -95,24 +111,28 @@ class HomeScreen(a: MainActivity) : Screen(a) {
 
         // tabs + sort
         val tabs = a.hbox()
-        val names = arrayOf("Meals", "Desserts", "All")
-        val colors = intArrayOf(C.TANG, C.RASP, C.MINT)
-        for (i in 0..2) {
+        // tab numbers stay as saved since 1.0 (0 meals, 1 desserts, 2 all); beverages (1.4) are 3, shown before All
+        val names = arrayOf("Meals", "Desserts", "All", "Beverages")
+        val colors = intArrayOf(C.TANG, C.RASP, C.MINT, C.BLUE)
+        val hsTabs = HorizontalScrollView(a); hsTabs.isHorizontalScrollBarEnabled = false
+        val tabRow = a.hbox()
+        for (i in intArrayOf(0, 1, 3, 2)) {
             val ch = a.chip(names[i], tab == i, colors[i], null, if (tab == i) 14f else 13f)
             if (tab == i) (ch.tag as android.widget.TextView).setTextColor(C.WHITE)
             ch.onClick { tab = i; rebuild() }
-            tabs.addView(ch, lp(WRAP, WRAP).m(r = a.dp(8)))
+            tabRow.addView(ch, lp(WRAP, WRAP).m(r = a.dp(8)))
         }
-        tabs.addView(a.space(), lp(0, 1, 1f))
+        hsTabs.addView(tabRow)
+        tabs.addView(hsTabs, lp(0, WRAP, 1f))
         val sortLbl = a.label(when (sort) { "tier" -> "by tier ▾"; "recent" -> "recently cooked ▾"; "time" -> "quickest ▾"; "effort" -> "easiest ▾"; else -> "a–z ▾" })
         sortLbl.setPadding(a.dp(6), a.dp(10), 0, a.dp(10))
         sortLbl.onClick { chooseSort() }
         tabs.addView(sortLbl)
         col.addView(tabs, lp(MATCH, WRAP).m(t = a.dp(18)))
 
-        val list = Store.recipes.filter { tab == 2 || (tab == 1) == it.dessert }
+        val list = Store.recipes.filter { inTab(it) }
         if (Store.recipes.isEmpty()) col.addView(emptyState(), lp(MATCH, WRAP).m(t = a.dp(30)))
-        else if (list.isEmpty()) col.addView(a.note(if (tab == 0) "No meals yet. Tap + to add one." else "No desserts yet. Tap + to add one.", 14f), lp(MATCH, WRAP).m(t = a.dp(30)))
+        else if (list.isEmpty()) col.addView(a.note("No " + Kinds.plural(tabKind()).lowercase() + " yet. Tap + to add one.", 14f), lp(MATCH, WRAP).m(t = a.dp(30)))
         else if (sort == "tier") tierList(col, list)
         else grid(col, sorted(list))
 
@@ -135,13 +155,7 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         miss.addView(a.body("Missions", 10.5f, C.INK, 600).single(), lp(WRAP, WRAP))
         miss.contentDescription = "Party missions"
         miss.onClick { a.push(MissionScreen(a)) }
-        left.addView(miss, lp(WRAP, WRAP).m(r = a.dp(14)))
-        val set = a.vbox(); set.gravity = Gravity.CENTER_HORIZONTAL
-        set.addView(a.icon("dots", 34, C.MINT), lp(a.dp(34), a.dp(34)))
-        set.addView(a.body("Settings", 10.5f, C.INK, 600).single(), lp(WRAP, WRAP))
-        set.contentDescription = "Settings"
-        set.onClick { a.push(SettingsScreen(a)) }
-        left.addView(set)
+        left.addView(miss)
         bar.addView(left, flp(WRAP, WRAP, Gravity.START or Gravity.BOTTOM).m(l = a.dp(16), b = a.dp(10)))
         val fab = FrameLayout(a)
         val fbg = InkBox(a, C.RASP, C.INK, 999f, 2.4f, 4f, 2)
@@ -216,8 +230,8 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         val bg = InkBox(a, C.CARD, Classes.get(r.cls).color, 999f, 2f, 3f, 4)
         ph.background = bg
         val p = RoundPhoto(a, 40f)
-        p.placeholderIcon = if (r.dessert) "potion" else "bowl"; p.placeholderColor = Classes.get(r.cls).color
-        p.show(r.photo, 200)
+        p.placeholderIcon = Kinds.icon(r.kind); p.placeholderColor = Classes.get(r.cls).color
+        p.showRecipe(r, 200)
         ph.addView(p, flp(a.dp(54), a.dp(54)).m(a.dp(2), a.dp(2)))
         v.addView(ph, lp(a.dp(61), a.dp(61)))
         val t = a.script(r.title, 19f); t.maxLines = 2; t.gravity = Gravity.CENTER; t.setLineSpacing(0f, 0.8f)
@@ -252,7 +266,7 @@ class HomeScreen(a: MainActivity) : Screen(a) {
     }
 
     private fun rollDice(d20: View) {
-        val pool = Store.recipes.filter { tab == 2 || (tab == 1) == it.dessert }
+        val pool = Store.recipes.filter { inTab(it) }
         if (pool.isEmpty()) { a.toast("Add a recipe first, then fate can choose"); return }
         d20.animate().rotationBy(720f).scaleX(1.3f).scaleY(1.3f).setDuration(650).withEndAction(object : Runnable {
             override fun run() {
@@ -264,13 +278,18 @@ class HomeScreen(a: MainActivity) : Screen(a) {
     }
 
     private var shown = false
-    override fun onShow() { missionRecipes(); if (shown) rebuild(); shown = true }
+    /** [Store.version] when the page was last drawn: coming back to an unchanged home redraws nothing (no flicker after Settings). */
+    private var drawnAt = -1L
+    override fun onShow() { missionRecipes(); if (shown && drawnAt != Store.version) rebuild(); shown = true }
     override fun onSynced() { missionRecipes(); rebuild() }
+
+    private fun tabKind(): String = when (tab) { 1 -> Recipe.DESSERT; 3 -> Recipe.BEVERAGE; else -> Recipe.MEAL }
+    private fun inTab(r: Recipe): Boolean = tab == 2 || r.kind == tabKind()
 
     /** Mission recipes the party reached since last time (a cook, or the other chef's cooks after a sync). */
     private fun missionRecipes() {
         val added = ArrayList<Recipe>()
-        for (w in Missions.all) if (Missions.started(w) > 0L) added.addAll(Missions.unlock(a, w))
+        for (w in Missions.all) if (Missions.started(w) > 0L && Missions.joined(w)) added.addAll(Missions.unlock(a, w))
         if (added.isNotEmpty()) { Sync.nudge(a); a.toast(if (added.size == 1) "Party mission: ${added[0].title} joined your grimoire" else "Party mission: ${added.size} recipes joined your grimoire") }
     }
 }

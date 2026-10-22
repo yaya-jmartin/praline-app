@@ -155,43 +155,52 @@ class ProfileScreen(a: MainActivity, var chef: Chef, val readOnly: Boolean) : Sc
 
     private fun party(col: LinearLayout) {
         col.addView(a.script("Party", 34f), lp(MATCH, WRAP).m(t = a.dp(18)))
-        val peer = Store.peer
-        if (peer == null || Store.pairKey.isEmpty()) {
-            col.addView(a.note("Pair a second phone on your home Wi-Fi and you'll share one cookbook, each with your own chef.", 12.5f))
-            val b = a.bigButton("Invite a second chef", C.MINT, C.INK, C.INK, "qr")
+        val party = Store.party()
+        if (party.isEmpty()) col.addView(a.note("Pair another phone and you'll share one cookbook, each with your own chef. Up to four chefs.", 12.5f))
+        for (ch in party) {
+            val card = a.card(C.MINT, 12, 10)
+            val r = a.hbox()
+            r.addView(Medallion(a, ch.portrait, C.MINT), lp(a.dp(54), a.dp(54)).m(r = a.dp(10)))
+            val t = a.vbox()
+            t.addView(a.script(ch.name, 28f).single())
+            val peer = Store.peers.firstOrNull { it.chefId == ch.id }
+            val via = if (peer == null) " · met through the party" else ""
+            t.addView(a.note("Level ${Fame.level(Fame.total(ch))} · ${Fame.classTitle(ch, Store.recipes)}$via", 11.5f))
+            r.addView(t, lp(0, WRAP, 1f))
+            r.addView(a.icon("chev", 18, 0, C.INK, 9f), lp(a.dp(18), a.dp(18)))
+            card.addView(r)
+            card.onClick { a.push(ProfileScreen(a, ch, true)) }
+            col.addView(card, lp(MATCH, WRAP).m(t = a.dp(8)))
+            if (peer != null) {
+                val btns = a.hbox()
+                val sync = a.boxButton("Sync now", true, C.MINT)
+                sync.contentDescription = "sync ${ch.name}"
+                sync.onClick {
+                    a.toast("Looking for ${ch.name}'s phone…")
+                    Sync.syncPeer(a, peer) { err ->
+                        if (err == Sync.NO_ANSWER) Sync.autoSync(a) { p, e2 -> if (p === peer) a.toast(if (e2 == null) "Synced with ${ch.name}" else Sync.explain(e2, ch.name)) }
+                        else a.toast(if (err == null) "Synced with ${ch.name}" else Sync.explain(err, ch.name))
+                    }
+                }
+                btns.addView(sync, lp(0, WRAP, 1f).m(r = a.dp(10)))
+                val un = a.boxButton("Unpair")
+                un.contentDescription = "unpair ${ch.name}"
+                un.onClick {
+                    Sheet(a, "Unpair ${ch.name}?").also {
+                        it.body.addView(a.note("Your recipes stay on this phone. This phone and ${ch.name}'s stop syncing until you pair again.", 13f))
+                    }.button("Keep").button("Unpair", primary = true) { Sync.unpair(a, peer); rebuild() }.show()
+                }
+                btns.addView(un, lp(0, WRAP, 1f))
+                col.addView(btns, lp(MATCH, WRAP).m(t = a.dp(8)))
+            }
+        }
+        if (Store.peers.size < Store.PARTY_MAX - 1 && party.size < Store.PARTY_MAX - 1) {
+            val b = a.bigButton(if (party.isEmpty()) "Invite a chef" else "Invite another chef", C.MINT, C.INK, C.INK, "qr")
+            b.contentDescription = "Invite a chef"
             b.onClick { a.push(PairScreen(a)) }
-            col.addView(b, lp(MATCH, WRAP).m(t = a.dp(10)))
-            return
+            col.addView(b, lp(MATCH, WRAP).m(t = a.dp(12)))
         }
-        val card = a.card(C.MINT, 12, 10)
-        val r = a.hbox()
-        r.addView(Medallion(a, peer.portrait, C.MINT), lp(a.dp(54), a.dp(54)).m(r = a.dp(10)))
-        val t = a.vbox()
-        t.addView(a.script(peer.name, 28f).single())
-        t.addView(a.note("Level ${Fame.level(Fame.total(peer))} · ${Fame.classTitle(peer, Store.recipes)}", 11.5f))
-        r.addView(t, lp(0, WRAP, 1f))
-        r.addView(a.icon("chev", 18, 0, C.INK, 9f), lp(a.dp(18), a.dp(18)))
-        card.addView(r)
-        card.onClick { a.push(ProfileScreen(a, peer, true)) }
-        col.addView(card, lp(MATCH, WRAP).m(t = a.dp(4)))
-        val btns = a.hbox()
-        val sync = a.boxButton("Sync now", true, C.MINT)
-        sync.onClick {
-            a.toast("Looking for ${peer.name}'s phone…")
-            val done: (String?) -> Unit = { err -> a.toast(if (err == null) "Synced with ${peer.name}" else "Couldn't reach ${peer.name}'s phone. Open Praliné on it, on the same Wi-Fi.") }
-            if (Store.peerHost.isNotEmpty()) Sync.syncWith(a, Store.peerHost, if (Store.peerPort > 0) Store.peerPort else Sync.PORT, Store.pairKey, done)
-            else Sync.autoSync(a, done)
-        }
-        btns.addView(sync, lp(0, WRAP, 1f).m(r = a.dp(10)))
-        val un = a.boxButton("Unpair")
-        un.onClick {
-            Sheet(a, "Unpair ${peer.name}?").also {
-                it.body.addView(a.note("Your recipes stay on this phone. The two cookbooks stop syncing until you pair again.", 13f))
-            }.button("Keep").button("Unpair", primary = true) { Sync.unpair(a); rebuild() }.show()
-        }
-        btns.addView(un, lp(0, WRAP, 1f))
-        col.addView(btns, lp(MATCH, WRAP).m(t = a.dp(12)))
-        col.addView(a.note("Both phones sync by themselves when Praliné is open on each, on the same Wi-Fi.", 11.5f), lp(MATCH, WRAP).m(t = a.dp(8)))
+        if (party.isNotEmpty()) col.addView(a.note("Phones sync by themselves every few seconds while Praliné is open on each, on the same Wi-Fi.", 11.5f), lp(MATCH, WRAP).m(t = a.dp(8)))
     }
 
     private fun edit() {
@@ -244,7 +253,7 @@ class ProfileScreen(a: MainActivity, var chef: Chef, val readOnly: Boolean) : Sc
     }
 
     override fun onShow() {
-        if (readOnly) { val p = Store.peer; if (p != null) chef = p } else chef = Store.me
+        if (readOnly) { val p = Store.chefs[chef.id]; if (p != null) chef = p } else chef = Store.me
         if (shown) rebuild()
         shown = true
     }

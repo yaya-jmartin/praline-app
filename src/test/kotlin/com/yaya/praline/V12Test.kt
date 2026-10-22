@@ -103,19 +103,24 @@ class V12Test {
         assertEquals("", HomeWifi.clean("<unknown ssid>"))
         assertEquals("Box-42", HomeWifi.clean(" Box-42 "))
         HomeWifi.assumeHome = false
+        // 1.4: the lock is optional; off, any Wi-Fi will do
+        assertTrue(HomeWifi.here(c))
+        HomeWifi.setLocked(c, true)
         assertFalse(HomeWifi.here(c))
+        assertTrue(HomeWifi.why(c)!!.contains("Save your home Wi-Fi"))
     }
 
     @Test fun syncRefusedAwayFromHome() {
         HomeWifi.assumeHome = false
+        HomeWifi.setLocked(c, true)
         Sync.startServer(c)
         var tries = 0
         while (Sync.port == 0 && tries < 50) { Thread.sleep(20); tries++ }
         Thread.sleep(200)
         Sync.pendingKey = "K7QPX2MD"
         val err = try { Sync.client(c, "127.0.0.1", Sync.port, "K7QPX2MD"); "" } catch (e: Exception) { e.message ?: "" }
-        assertEquals(Sync.NOT_HOME, err)
-        assertEquals("", Store.pairKey)
+        assertEquals(Sync.THEIRS_NOT_HOME, err)
+        assertTrue(Store.peers.isEmpty())
         Sync.stopServer(c)
     }
 
@@ -134,7 +139,7 @@ class V12Test {
         var p = Missions.progress(w)
         assertEquals(50, p.xp); assertEquals(0, p.done); assertFalse(p.waiting); assertEquals(30, p.toNext); assertEquals(0, p.reached)
         // the other chef's cook takes the party to the first spot, with XP to spare
-        val sam = Chef(); sam.name = "Sam"; Store.peer = sam
+        val sam = Chef(); sam.name = "Sam"; TestParty.pair(sam); TestParty.legacy(w)
         sam.history.add(CookEntry("y", "Classic", t0 + 2 * hour, 60))
         p = Missions.progress(w)
         assertTrue(p.waiting); assertEquals(1, p.reached); assertEquals(30, p.banked)

@@ -5,15 +5,27 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Editing a recipe both chefs already have. Each change is either kept on this phone (a My Variant
- * special), offered as a new variant for everyone, or offered as the new main recipe. The other chef
- * accepts or refuses each one, and specials can be shared on to the other chef too.
+ * Editing a recipe the party already has. Each change is either kept on this phone (a My Variant
+ * special), offered as a new variant for everyone, or offered as the new main recipe. Every other chef
+ * accepts or refuses it on their own phone, and specials can be shared on to the other chefs too.
+ * Offers and answers travel from phone to phone ([Store.relay], [Store.votes]) until everyone answered.
  */
 object Share {
-    /** The other phone has this recipe, so changes to it go through the other chef. */
-    fun isShared(r: Recipe): Boolean = Store.pairKey.isNotEmpty() && Store.peer != null && Store.peerSeen.contains(r.id)
+    /** Offers and answers older than this are dropped, answered or not. */
+    const val KEEP_MS = 30L * 24 * 3600_000L
 
-    fun peerName(): String = Store.peer?.name ?: "the other chef"
+    /** Other phones have this recipe, so changes to it go through the other chefs. */
+    fun isShared(r: Recipe): Boolean = Store.paired() && Store.party().isNotEmpty() && Store.peerSeen.contains(r.id)
+
+    /** "Sam", "Sam and Alex", "Sam, Alex and Jo": the other chefs of the party. */
+    fun peerName(): String {
+        val names = Store.party().map { it.name }
+        return when (names.size) {
+            0 -> "the other chef"
+            1 -> names[0]
+            else -> names.dropLast(1).joinToString(", ") + " and " + names.last()
+        }
+    }
 
     private fun send(c: Context?, p: Proposal): Proposal {
         Store.outbox.add(p)
@@ -114,7 +126,7 @@ object Share {
 
     private fun answer(c: Context?, p: Proposal, verdict: String) {
         Store.inbox.removeAll { it.id == p.id }
-        Store.answers[p.id] = verdict
+        Store.votes[p.id + "|" + Store.me.id] = verdict
         Store.handled.add(p.id)
         if (c != null) { Store.save(c); Store.cleanPhotos(c) }
     }
@@ -153,33 +165,42 @@ object Share {
 
     fun refuse(c: Context?, p: Proposal) = answer(c, p, "refused")
 
-    /** Merging the other phone's offers and answers (called from the sync). Returns lines to tell the chef. */
-    fun merge(remote: JSONObject): List<String> {
+    /** True once every other chef of the party (but the one who sent it) answered [p]. */
+    private fun allAnswered(p: Proposal): Boolean {
+        for (ch in Store.party()) if (ch.id != p.from && !Store.votes.containsKey(p.id + "|" + ch.id)) return false
+        if (p.from != Store.me.id && !Store.votes.containsKey(p.id + "|" + Store.me.id)) return false
+        return true
+    }
+
+    /** Merging another phone's offers and answers (called from the sync). Returns lines to tell the chef. */
+    fun merge(remote: JSONObject, now: Long = System.currentTimeMillis()): List<String> {
         val news = ArrayList<String>()
-        val name = remote.optJSONObject("me")?.optString("name")?.ifEmpty { null } ?: peerName()
-        val out = remote.optJSONArray("outbox") ?: JSONArray()
-        val stillOffered = HashSet<String>()
-        for (i in 0 until out.length()) {
-            val p = Proposal.fromJson(out.getJSONObject(i))
-            stillOffered.add(p.id)
-            if (p.from == Store.me.id || Store.handled.contains(p.id) || Store.inbox.any { it.id == p.id }) continue
+        // answers travel with everyone's offers; nothing is taken back
+        val vo = remote.optJSONObject("votes") ?: JSONObject()
+        for (k in vo.keys()) if (!Store.votes.containsKey(k)) Store.votes[k] = vo.getString(k)
+        val ps = remote.optJSONArray("proposals") ?: JSONArray()
+        for (i in 0 until ps.length()) {
+            val p = Proposal.fromJson(ps.getJSONObject(i))
+            if (p.from == Store.me.id || now - p.at > KEEP_MS) continue
+            if (Store.relay.none { it.id == p.id } && !allAnswered(p)) Store.relay.add(p)
+            if (Store.handled.contains(p.id) || Store.inbox.any { it.id == p.id } || Store.votes.containsKey(p.id + "|" + Store.me.id)) continue
             Store.inbox.add(p)
-            news.add("$name sent a change to ${p.title}")
+            news.add("${p.fromName} sent a change to ${p.title}")
         }
-        // the other chef's answers to what this phone sent
-        val ans = remote.optJSONObject("answers") ?: JSONObject()
-        val it = Store.outbox.iterator()
-        while (it.hasNext()) {
-            val p = it.next()
-            val v = ans.optString(p.id)
-            if (v.isEmpty()) continue
-            it.remove()
-            news.add(if (v == "accepted") "$name accepted your change to ${p.title}" else "$name kept ${p.title} as it was")
+        // the other chefs' answers to what this phone sent, each said once
+        for (p in Store.outbox) for (ch in Store.party()) {
+            val k = p.id + "|" + ch.id
+            val v = Store.votes[k] ?: continue
+            if (!Store.told.add(k)) continue
+            news.add(if (v == "accepted") "${ch.name} accepted your change to ${p.title}" else "${ch.name} kept ${p.title} as it was")
         }
-        // answers the other phone has seen (its offer is gone) aren't needed any more
-        val drop = ArrayList<String>()
-        for (k in Store.answers.keys) if (!stillOffered.contains(k)) drop.add(k)
-        for (k in drop) Store.answers.remove(k)
+        // offers everyone answered (or a month old) are done
+        Store.outbox.removeAll { now - it.at > KEEP_MS || (Store.party().isNotEmpty() && allAnswered(it)) }
+        Store.relay.removeAll { now - it.at > KEEP_MS || allAnswered(it) }
+        val live = HashSet<String>()
+        for (p in Store.outbox) live.add(p.id); for (p in Store.relay) live.add(p.id); for (p in Store.inbox) live.add(p.id)
+        Store.votes.keys.retainAll { live.contains(it.substringBefore('|')) }
+        Store.told.retainAll { live.contains(it.substringBefore('|')) }
         return news
     }
 }

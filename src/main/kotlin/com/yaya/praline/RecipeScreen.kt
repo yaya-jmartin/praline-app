@@ -38,7 +38,7 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
         val hero = FrameLayout(a)
         val photo = RoundPhoto(a, 0f)
         photo.placeholderIcon = cls.icon; photo.placeholderColor = cls.color
-        photo.show(r.photo, 1280)
+        photo.showRecipe(r, 1280)
         hero.addView(photo, FrameLayout.LayoutParams(MATCH, MATCH))
         if (r.photo.isEmpty()) {
             val add = a.chip("Add a photo", false, C.MINT, "cam")
@@ -197,7 +197,7 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
         val s = Sheet(a, sv.name)
         val e = Fields.line(a, "Name"); e.setText(sv.name)
         s.body.addView(e, lp(MATCH, WRAP))
-        if (Store.peer != null && Store.pairKey.isNotEmpty()) {
+        if (Store.paired() && Store.party().isNotEmpty()) {
             val sh = a.chip("Share with ${Share.peerName()}", false, C.MINT, "heart", 13f)
             sh.onClick { s.dismiss(); Share.shareSpecial(a, r, sv); a.toast("Sent to ${Share.peerName()}"); Sync.nudge(a) }
             s.body.addView(sh, lp(WRAP, WRAP).m(t = a.dp(10)))

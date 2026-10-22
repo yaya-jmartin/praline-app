@@ -39,11 +39,14 @@ class MainActivity : Activity() {
     private var pendingShot: String = ""
     private var permCallback: ((Boolean) -> Unit)? = null
 
+    private var ticks = 0
     private val ticker = object : Runnable {
         override fun run() {
             Timers.finishAllDue(this@MainActivity)
             top()?.tick()
             banner.update()
+            // live sync with the other open phones, every few seconds
+            if (++ticks % 10 == 0) Sync.live(this@MainActivity)
             handler.postDelayed(this, 500)
         }
     }
@@ -101,7 +104,8 @@ class MainActivity : Activity() {
         handler.removeCallbacks(ticker)
         handler.post(ticker)
         Timers.restore(this)
-        if (Store.pairKey.isNotEmpty()) Sync.autoSync(this) { err -> if (err == Sync.TOO_OLD || err == Sync.TOO_MANY || err == Sync.NOT_YOURS) toast(err) }
+        // every paired phone, found on the Wi-Fi; only reasons the chef can act on are said
+        Sync.autoSync(this) { _, err -> if (err == Sync.TOO_OLD || err == Sync.TOO_MANY || err == Sync.NOT_YOURS) toast(err) }
     }
 
     override fun onPause() { super.onPause(); handler.removeCallbacks(ticker); Resume.save(this) }

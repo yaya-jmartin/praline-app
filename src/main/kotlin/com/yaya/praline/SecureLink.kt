@@ -19,7 +19,7 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * The private line between the two phones (sync protocol 3).
+ * The private line between two phones of the party (sync protocol 3, and 4 from 1.4).
  *
  * Each sync starts with a fresh key exchange (elliptic-curve Diffie-Hellman), so someone listening on the Wi-Fi
  * learns nothing, and recordings can't be opened later. Both phones then prove they know the shared secret
@@ -58,14 +58,26 @@ object SecureLink {
 
     fun sha256(vararg parts: ByteArray): ByteArray { val d = MessageDigest.getInstance("SHA-256"); for (p in parts) d.update(p); return d.digest() }
 
-    /** What a pair code proves with: never the code itself. */
-    fun codeSecret(code: String): ByteArray = sha256("praline-pair-code".toByteArray(), code.toByteArray(Charsets.UTF_8))
+    /**
+     * What a pair code proves with: never the code itself. Since 1.4 it is stretched (PBKDF2, [CODE_ROUNDS] rounds),
+     * so someone who records a pairing can't try codes quickly afterwards.
+     */
+    fun codeSecret(code: String): ByteArray = synchronized(codeCache) {
+        codeCache[code]?.let { return it }
+        val spec = javax.crypto.spec.PBEKeySpec(code.toCharArray(), "praline-pair-code-4".toByteArray(), CODE_ROUNDS, 256)
+        val out = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+        if (codeCache.size > 8) codeCache.clear()
+        codeCache[code] = out
+        out
+    }
+    const val CODE_ROUNDS = 60_000
+    private val codeCache = HashMap<String, ByteArray>()
 
     fun same(a: ByteArray, b: ByteArray): Boolean = MessageDigest.isEqual(a, b)
 
     /** Everything one sync derives from the key exchange and the secret both phones prove they know. */
     class Keys(auth: ByteArray, shared: ByteArray, transcript: ByteArray) {
-        private val k = hmac(auth, "praline-3".toByteArray(), shared, transcript)
+        private val k = hmac(auth, "praline-4".toByteArray(), shared, transcript)
         val clientProof: ByteArray = hmac(k, "client proof".toByteArray())
         val serverProof: ByteArray = hmac(k, "server proof".toByteArray())
         val toServer: ByteArray = hmac(k, "client to server".toByteArray())

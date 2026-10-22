@@ -90,7 +90,7 @@ class ScreensTest {
         Store.cook(c, chili, "Spicier"); Store.cook(c, tira, "Classic"); Store.cook(c, agr, "Classic")
         val peer = Chef(); peer.name = "Sam"; peer.portrait = 2
         peer.history.add(CookEntry(chili.id, "Spicier", System.currentTimeMillis(), 110))
-        Store.peer = peer; Store.pairKey = "k"
+        TestParty.pair(peer)
         Store.save(c)
         HomeWifi.assumeHome = true
     }
@@ -273,22 +273,23 @@ class ScreensTest {
         a.pop(); idle(600)
         tap(root, "Unpair"); tap(root, "Unpair")
         idle(400)
+        assertTrue(Store.peers.isEmpty())
         assertNull(Store.peer)
-        assertTrue(has(root, "Invite a second chef"))
-        tap(root, "Invite a second chef")
+        assertTrue(has(root, "Invite a chef"))
+        tap(root, "Invite a chef")
         assertTrue(a.top() is PairScreen)
         shot(root, "17-pair-choose")
     }
 
     @Test fun pairShowsCode() {
         val a = launch()
-        Store.peer = null
+        Store.peers.clear(); Store.chefs.clear()
         val p = PairScreen(a); p.mode = 1
         a.push(p); idle(600)
         val root = a.window.decorView
         shot(root, "18-pair-code")
         // simulate the other phone syncing in
-        Store.pairKey = "k"; val sam = Chef(); sam.name = "Sam"; Store.peer = sam
+        val sam = Chef(); sam.name = "Sam"; TestParty.pair(sam)
         p.onSynced(); idle()
         assertTrue(has(root, "Sam joined the party"))
         shot(root, "19-paired")
@@ -479,7 +480,7 @@ class ScreensTest {
         shot(root, "32-home-offer")
         byDesc(root, "accept Chili sin carne").performClick(); idle(600)
         assertEquals(3, Store.recipe(chili.id)!!.variants.size)
-        assertEquals("accepted", Store.answers["p1"])
+        assertEquals("accepted", Store.votes["p1|" + Store.me.id])
         assertFalse(has(root, "SAM SENT A NEW VARIANT FOR"))
     }
 
@@ -523,7 +524,7 @@ class ScreensTest {
 
     @Test fun pairingHasATypedCode() {
         val a = launch()
-        Store.peer = null; Store.pairKey = ""
+        Store.peers.clear(); Store.chefs.clear()
         Sync.fixedIp = "192.168.1.20"
         val p = PairScreen(a); p.mode = 1
         a.push(p); idle(600)
@@ -554,6 +555,7 @@ class ScreensTest {
         val w = Missions.SUNFORGE
         val t0 = System.currentTimeMillis() - 50 * 3_600_000L
         Missions.start(c, w, t0)
+        TestParty.legacy(w)
         // the party cooked its way past the first two spots and stands at the third
         var at = t0
         fun cook(id: String, xp: Int) { at += 3_600_000L; Store.me.history.add(CookEntry(id, "Classic", at, xp)) }
@@ -646,7 +648,8 @@ class ScreensTest {
     @Test fun pairingWaitsForHomeWifi() {
         val a = launch()
         HomeWifi.assumeHome = false
-        Store.peer = null; Store.pairKey = ""
+        HomeWifi.setLocked(a, true)
+        Store.peers.clear(); Store.chefs.clear()
         val p = PairScreen(a); p.mode = 0
         a.push(p); idle(600)
         val root = a.window.decorView

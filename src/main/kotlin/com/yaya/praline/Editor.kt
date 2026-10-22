@@ -16,7 +16,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 /**
- * Writing a recipe: photo, lettered title, meal or dessert, class, tier, effort, time, servings, fame,
+ * Writing a recipe: photo, lettered title, meal, dessert or beverage, class, tier, effort, time, servings, fame,
  * named variants, and three tabs: ingredients, equipment, and steps with timers, hint pictures and clips.
  * Works on a copy, so leaving without saving changes nothing.
  *
@@ -65,8 +65,9 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
             r.variants.clear()
             val d = draft.toJson(); d.put("id", r.id)
             val back = Recipe.fromJson(d)
-            r.title = back.title; r.dessert = back.dessert; r.cls = back.cls; r.tier = back.tier; r.effort = back.effort; r.timeMin = back.timeMin
+            r.title = back.title; r.kind = back.kind; r.cls = back.cls; r.tier = back.tier; r.effort = back.effort; r.timeMin = back.timeMin
             r.servings = back.servings; r.photo = back.photo; r.photoOrig = back.photoOrig; r.filter = back.filter; r.strength = back.strength
+            r.focusX = back.focusX; r.focusY = back.focusY; r.zoom = back.zoom
             r.fame = back.fame; r.equipment.clear(); r.equipment.addAll(back.equipment); r.equipCount.clear(); r.equipCount.putAll(back.equipCount)
             r.variants.addAll(back.variants)
             variant = Math.max(0, Math.min(startVariant, r.variants.size - 1))
@@ -151,7 +152,7 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         val ph = FrameLayout(a)
         val photo = RoundPhoto(a, 20f); photo.outline = true
         photo.placeholderIcon = "cam"; photo.placeholderColor = cls.color
-        photo.show(r.photo, 900)
+        photo.showRecipe(r, 900)
         ph.addView(photo, FrameLayout.LayoutParams(MATCH, MATCH))
         photo.onClick { newPhoto() }
         val chipsRow = a.hbox()
@@ -178,13 +179,13 @@ class EditorScreen(a: MainActivity, original: Recipe?, startVariant: Int = 0, va
         col.addView(title, lp(MATCH, WRAP).m(t = a.dp(4)))
         col.addView(View(a).also { it.setBackgroundColor(C.DASH) }, lp(MATCH, a.dp(2)).m(b = a.dp(4)))
 
-        // meal / dessert
+        // meal / dessert / beverage
         val kind = a.hbox()
-        val meal = a.chip("Meal", !r.dessert, C.TANG, "bowl")
-        meal.onClick { r.dessert = false; rebuild() }
-        val des = a.chip("Dessert", r.dessert, C.RASP, "potion")
-        des.onClick { r.dessert = true; rebuild() }
-        kind.addView(meal, lp(WRAP, WRAP).m(r = a.dp(8))); kind.addView(des)
+        for (k in Recipe.KINDS) {
+            val ch = a.chip(Kinds.name(k), r.kind == k, Kinds.color(k), Kinds.icon(k))
+            ch.onClick { r.kind = k; rebuild() }
+            kind.addView(ch, lp(WRAP, WRAP).m(r = a.dp(8)))
+        }
         col.addView(section("Kind"))
         col.addView(kind)
 

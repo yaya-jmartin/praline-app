@@ -7,7 +7,8 @@ import android.widget.ScrollView
 
 /**
  * A party mission: the world map with the party on its trail, the party's XP and the next spot to cook.
- * Both chefs' cooks move the party; a spot's recipe joins the grimoire when the party reaches it.
+ * Every member's cooks move the party; a spot's recipe joins the grimoire when the party reaches it.
+ * 1.4: a chef sets off and invites the others, who join from their own phone ([MissionInvite]).
  */
 class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFORGE) : Screen(a) {
     private var map: MissionMap? = null
@@ -15,7 +16,6 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
     private var placed = false
 
     override fun build(): View {
-        Missions.start(a, world)
         val col = a.vbox()
 
         // the map first: it knows where the spots sit along the trail
@@ -39,7 +39,7 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
         val xr = a.hbox()
         xr.addView(a.label("Party XP", C.INK), lp(WRAP, WRAP).m(r = a.dp(8)))
         xr.addView(FameBar(a, p.into.toFloat() / p.span), lp(0, a.dp(14), 1f))
-        val goal = p.next?.xp ?: p.xp
+        val goal = if (p.next != null) p.xpAt(p.done) else p.xp
         xr.addView(a.body(if (p.complete) "${p.xp} XP" else "${Math.min(p.xp, goal)} / $goal XP", 12f, C.INK, 600), lp(WRAP, WRAP).m(l = a.dp(8)))
         head.addView(xr, lp(MATCH, WRAP).m(t = a.dp(2)))
 
@@ -48,6 +48,11 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
         nr.addView(dots(p))
         head.addView(nr, lp(MATCH, WRAP).m(t = a.dp(6)))
         if (p.complete) head.addView(banner(), lp(MATCH, WRAP).m(t = a.dp(10)))
+        when {
+            Missions.started(world) <= 0L -> MissionInvite.setOff(a, head, world) { rebuild() }
+            Missions.invitedHere(world) -> head.addView(MissionInvite.card(a, world) { rebuild() }, lp(MATCH, WRAP).m(t = a.dp(8)))
+            else -> MissionInvite.members(a, head, world, p) { rebuild() }
+        }
         col.addView(head)
 
         val scroll = object : ScrollView(a) {
@@ -120,8 +125,8 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
                 openButton(s, id)
             }
             else -> {
-                val need = Math.max(0, spot.xp - p.xp)
-                s.body.addView(a.note("$where. Locked: the party needs $need more XP to reach it. Any recipe either of you cooks counts.", 13f))
+                val need = Math.max(0, p.xpAt(i) - p.xp)
+                s.body.addView(a.note("$where. Locked: the party needs $need more XP to reach it. Any recipe a member cooks counts.", 13f))
                 if (i > p.reached) s.body.addView(a.note("Cook the spots before it first.", 12f), lp(MATCH, WRAP).m(t = a.dp(4)))
                 s.button("Close", primary = true)
             }
@@ -143,6 +148,7 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
     }
 
     private fun unlock(p: Missions.Progress) {
+        if (!Missions.joined(world)) return
         val added = Missions.unlock(a, world, p)
         if (added.isNotEmpty()) {
             Sync.nudge(a)

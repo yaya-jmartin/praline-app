@@ -142,7 +142,7 @@ class BoardScreen(a: MainActivity) : Screen(a) {
         } else {
             val ph = RoundPhoto(a, 999f); ph.outline = true
             ph.placeholderIcon = Classes.get(p.recipe.cls).icon; ph.placeholderColor = Classes.get(p.recipe.cls).color
-            ph.show(p.recipe.photo, 160)
+            ph.showRecipe(p.recipe, 160)
             row.addView(ph, lp(a.dp(30), a.dp(30)).m(r = a.dp(10)))
             val t = p.recipe.title + if (p.recipe.variants.size > 1 && p.variant > 0) " · " + p.recipe.variants[p.variant].name else ""
             row.addView(a.script(t, 22f).single(), lp(0, WRAP, 1f))
@@ -221,7 +221,7 @@ class BoardScreen(a: MainActivity) : Screen(a) {
             val row = a.hbox(); row.setPadding(0, a.dp(6), 0, a.dp(6))
             val ph = RoundPhoto(a, 999f); ph.outline = true
             ph.placeholderIcon = Classes.get(r.cls).icon; ph.placeholderColor = Classes.get(r.cls).color
-            ph.show(r.photo, 160)
+            ph.showRecipe(r, 160)
             row.addView(ph, lp(a.dp(32), a.dp(32)).m(r = a.dp(10)))
             row.addView(a.script(r.title, 22f).single(), lp(0, WRAP, 1f))
             row.addView(a.note(fmtDuration(r.timeMin) + " · DC " + Fame.dc(r.effort), 11f))
