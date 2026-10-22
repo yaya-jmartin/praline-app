@@ -46,12 +46,25 @@ android {
     // The release key comes from GitHub's secrets only (the workflow writes it to a temporary file);
     // without them the release APK is built unsigned, as before.
     val keystore = System.getenv("PRALINE_KEYSTORE")?.takeIf { it.isNotEmpty() && File(it).exists() }
+    // A password pasted from a phone can pick up typographic dashes, no-break or zero-width spaces; the real one
+    // is plain ASCII, so those are put back to what they stand for. Only counts are logged, never the password.
+    val rawPassword = System.getenv("PRALINE_KEY_PASSWORD") ?: ""
+    val keyPassword = rawPassword
+        .replace(Regex("[\u2010-\u2015\u2212\uFE63\uFF0D]"), "-")
+        .replace(Regex("[\u00A0\u200B-\u200D\u2060\uFEFF]"), "")
+        .trim()
+    if (keystore != null) {
+        val odd = keyPassword.count { it.code !in 0x20..0x7E }
+        val fixed = rawPassword != keyPassword
+        println("Release key password: ${rawPassword.length} characters as given, ${keyPassword.length} used, " +
+            (if (fixed) "dashes or spaces repaired, " else "") + "$odd not plain ASCII")
+    }
     signingConfigs {
         if (keystore != null) create("release") {
             storeFile = File(keystore)
-            storePassword = System.getenv("PRALINE_KEY_PASSWORD")
+            storePassword = keyPassword
             keyAlias = "praline"
-            keyPassword = System.getenv("PRALINE_KEY_PASSWORD")
+            this.keyPassword = keyPassword
         }
     }
 
