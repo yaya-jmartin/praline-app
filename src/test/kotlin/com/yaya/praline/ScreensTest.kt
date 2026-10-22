@@ -827,4 +827,51 @@ class ScreensTest {
             longShot(a, "66-editor-from-page")
         } finally { Ocr.reader = before }
     }
+
+    @Test fun settingsHeldSwipeStaysStill() {
+        val a = launch()
+        a.push(SettingsScreen(a)); idle(800)
+        val s = a.top()!!
+        // drag Settings 240 px to the left, then hold the finger still: the page must stay where the finger is
+        touch(a, android.view.MotionEvent.ACTION_DOWN, 800f, 600f)
+        for (k in 1..4) { touch(a, android.view.MotionEvent.ACTION_MOVE, 800f - k * 60f, 600f); idle(16) }
+        val held = s.root.translationX
+        assertEquals(-240f, held, 30f)
+        for (k in 1..6) {
+            touch(a, android.view.MotionEvent.ACTION_MOVE, 560f, 600f); idle(16)
+            assertEquals("frame $k", held, s.root.translationX, 1f)
+        }
+        touch(a, android.view.MotionEvent.ACTION_MOVE, 500f, 600f); idle(16)
+        assertEquals(held - 60f, s.root.translationX, 1f)
+        touch(a, android.view.MotionEvent.ACTION_UP, 500f, 600f); idle(800)
+        assertTrue(a.top() is SettingsScreen)
+        assertEquals(0f, s.root.translationX, 1f)
+    }
+
+    @Test fun homeTitleAndTabsFitTheScreen() {
+        val a = launch()
+        val root = a.window.decorView
+        val w = a.resources.displayMetrics.widthPixels
+        val logo = all(root).filterIsInstance<android.widget.TextView>().first { it.contentDescription?.toString() == "Praliné" }
+        val ink = android.graphics.Rect()
+        logo.paint.getTextBounds("Praliné", 0, 7, ink)
+        val loc = IntArray(2); logo.getLocationOnScreen(loc)
+        // TextView clips to the area inside its padding: the ink sits inside that area on both sides, and the view inside the screen
+        val start = logo.layout.getLineLeft(0)
+        assertEquals(0, logo.paddingLeft + logo.paddingRight)
+        assertTrue(start + ink.left >= 0)
+        assertTrue(start + ink.right <= logo.width)
+        assertTrue(loc[0] >= 0 && loc[0] + logo.width <= w)
+        // all four tabs are fully on screen, the sort sits on its own line
+        for (t in arrayOf("Meals", "Desserts", "Beverages", "All")) {
+            val v = all(root).filterIsInstance<android.widget.TextView>().first { it.text.toString() == t }
+            val l = IntArray(2); v.getLocationOnScreen(l)
+            assertTrue("$t fits", l[0] >= 0 && l[0] + v.width <= w)
+        }
+        // the invite page explains chefs from another home
+        a.push(PairScreen(a)); idle(600)
+        assertTrue(hasPart(root, "different Wi-Fi networks can't sync yet"))
+        assertTrue(hasPart(root, "turn the home lock off"))
+        longShot(a, "67-invite-other-home")
+    }
 }

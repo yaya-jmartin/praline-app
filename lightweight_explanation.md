@@ -49,6 +49,12 @@ One constraint shapes most of the choices below. The computer Claude builds on c
 | **Slow code checking** (PBKDF2, built into Java) | Makes checking a pairing code deliberately slow | Guessing the typed pairing code becomes impractical | Built into every phone, the standard way to protect short codes |
 | **A chime made on the phone** (Android's AudioTrack) | The phone plays sound it computes itself | The level-up sparkle sound | No sound file to ship or license |
 
+## New in 1.4.1 (no new libraries)
+
+| What | What it does | Why |
+|---|---|---|
+| **APK on the builds branch** | After GitHub signs the app, a second step saves the APK in the repository's `builds` branch | Claude can't download GitHub's build files from its workspace, but it can fetch that branch, so the signed APK lands straight in the Praliné folder. Only that step can write to the repository, and it never sees the key |
+
 ## The tools that build the app (not inside it)
 
 Same chain as Pistachio:

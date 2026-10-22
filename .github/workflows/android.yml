@@ -3,7 +3,9 @@
 # The release APK is signed with the "praline" key when the repository's secrets hold it (issue #5):
 #   PRALINE_KEYSTORE_B64  the release.jks file, base64-encoded
 #   PRALINE_KEY_PASSWORD  its password
-# The signed APK is kept as the "praline-signed" artifact. Publishing a Release stays a manual step for Yaya.
+# The signed APK is kept as the "praline-signed" artifact. Outside pull requests it is also committed to the
+# "builds" branch as Praline-<version>.apk, so it can be fetched with git and dropped into the Praliné folder.
+# Publishing a Release stays a manual step for Yaya.
 name: Android build
 
 on:
@@ -76,3 +78,42 @@ jobs:
             agp/app/build/shots/
           if-no-files-found: warn
           retention-days: 14
+
+  # A separate job holds the write permission, so the job that sees the signing key stays read-only.
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the signed APK
+        id: apk
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: praline-signed
+          path: ${{ runner.temp }}/signed
+
+      - name: Commit it to the builds branch
+        if: steps.apk.outcome == 'success'
+        run: |
+          ver=$(grep -o 'versionName="[^"]*"' app/AndroidManifest.xml | cut -d'"' -f2)
+          dir="$RUNNER_TEMP/builds"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin builds >/dev/null; then
+            git fetch -q --depth=1 origin builds
+            git worktree add -q "$dir" FETCH_HEAD
+            git -C "$dir" checkout -q -B builds
+          else
+            git worktree add -q --detach "$dir"
+            git -C "$dir" checkout -q --orphan builds
+            git -C "$dir" rm -rq --cached . && find "$dir" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          fi
+          cp "$RUNNER_TEMP/signed/app-release.apk" "$dir/Praline-$ver.apk"
+          git -C "$dir" add "Praline-$ver.apk"
+          git -C "$dir" commit -q -m "Praliné $ver signed APK (${GITHUB_SHA::7}, ${GITHUB_REF_NAME})" || { echo "Unchanged"; exit 0; }
+          git -C "$dir" push -q origin builds

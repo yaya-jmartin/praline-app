@@ -32,16 +32,22 @@ class SwipeCatcher(c: android.content.Context, private val dir: Int, private val
         return false
     }
 
+    /** The finger in screen coordinates: the page this sits on moves with the drag, so its own coordinates would chase the finger. */
+    private fun track(e: MotionEvent) {
+        val m = MotionEvent.obtain(e); m.setLocation(e.rawX, e.rawY)
+        vt?.addMovement(m); m.recycle()
+    }
+
     override fun onInterceptTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                downX = e.x; downY = e.y; dragging = false
+                downX = e.rawX; downY = e.rawY; dragging = false
                 blocked = scrollerAt(this, e.rawX, e.rawY)
-                vt?.recycle(); vt = VelocityTracker.obtain(); vt?.addMovement(e)
+                vt?.recycle(); vt = VelocityTracker.obtain(); track(e)
             }
             MotionEvent.ACTION_MOVE -> {
-                vt?.addMovement(e)
-                val dx = e.x - downX; val dy = e.y - downY
+                track(e)
+                val dx = e.rawX - downX; val dy = e.rawY - downY
                 if (!blocked && !dragging && dx * dir > slop * 1.5f && Math.abs(dx) > Math.abs(dy) * 1.4f) {
                     dragging = true
                     parent?.requestDisallowInterceptTouchEvent(true)
@@ -54,11 +60,11 @@ class SwipeCatcher(c: android.content.Context, private val dir: Int, private val
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         if (vt == null) vt = VelocityTracker.obtain()
-        vt?.addMovement(e)
+        track(e)
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y; dragging = false; blocked = false; return true }
+            MotionEvent.ACTION_DOWN -> { downX = e.rawX; downY = e.rawY; dragging = false; blocked = false; return true }
             MotionEvent.ACTION_MOVE -> {
-                val dx = e.x - downX; val dy = e.y - downY
+                val dx = e.rawX - downX; val dy = e.rawY - downY
                 if (!dragging && dx * dir > slop * 1.5f && Math.abs(dx) > Math.abs(dy) * 1.4f) dragging = true
                 if (dragging) onDrag(Math.max(0f, dx * dir), 0, 0f)
             }
@@ -66,7 +72,7 @@ class SwipeCatcher(c: android.content.Context, private val dir: Int, private val
                 if (dragging) {
                     vt?.computeCurrentVelocity(1000)
                     val v = (vt?.xVelocity ?: 0f) * dir
-                    onDrag(Math.max(0f, (e.x - downX) * dir), if (e.actionMasked == MotionEvent.ACTION_UP) 1 else 2, v)
+                    onDrag(Math.max(0f, (e.rawX - downX) * dir), if (e.actionMasked == MotionEvent.ACTION_UP) 1 else 2, v)
                 }
                 dragging = false
                 vt?.recycle(); vt = null

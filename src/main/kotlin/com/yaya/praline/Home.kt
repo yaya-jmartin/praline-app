@@ -62,10 +62,8 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         val titles = a.vbox()
         val logo = a.script("Praliné", 66f)
         logo.maxLines = 1
-        // the script's last letter leans out past its box: room on the right so the accent is never cut
-        logo.setPadding(0, 0, a.dp(14), 0)
         logo.contentDescription = "Praliné"
-        titles.addView(logo, lp(WRAP, WRAP).m(l = -a.dp(6)))
+        titles.addView(logo, lp(WRAP, WRAP))
         titles.addView(a.note("the grimoire of ${Store.me.name}'s kitchen", 13f), lp(WRAP, WRAP).m(l = a.dp(16), t = -a.dp(8)))
         head.addView(titles, lp(0, WRAP, 1f))
         val party = a.vbox(); party.gravity = Gravity.CENTER_HORIZONTAL
@@ -89,9 +87,7 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         head.addView(party, lp(WRAP, WRAP).m(t = a.dp(8), l = a.dp(6)))
         // a bigger party leaves less room: the lettering shrinks to fit instead of running under the medallions
         val partyW = if (others.isNotEmpty()) 68 + 28 + 26 * (others.size - 1) else 68
-        val room = a.resources.displayMetrics.widthPixels - a.dp(44 + partyW + 6 + 14 - 6)
-        val need = logo.paint.measureText("Praliné")
-        if (need > room && need > 0f) logo.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, logo.textSize * room / need)
+        fitScript(logo, a.resources.displayMetrics.widthPixels - a.dp(44 + partyW + 6))
         col.addView(head)
 
         // mission invites waiting for this chef
@@ -109,26 +105,26 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         // changes the other chef sent, waiting for an answer
         for (p in ArrayList(Store.inbox)) col.addView(Inbox.card(a, p) { rebuild() }, lp(MATCH, WRAP).m(t = a.dp(14)))
 
-        // tabs + sort
-        val tabs = a.hbox()
+        // tabs, then the sort on its own line: with Beverages (1.4) the four tabs need the whole width
         // tab numbers stay as saved since 1.0 (0 meals, 1 desserts, 2 all); beverages (1.4) are 3, shown before All
         val names = arrayOf("Meals", "Desserts", "All", "Beverages")
         val colors = intArrayOf(C.TANG, C.RASP, C.MINT, C.BLUE)
         val hsTabs = HorizontalScrollView(a); hsTabs.isHorizontalScrollBarEnabled = false
+        hsTabs.clipToPadding = false
         val tabRow = a.hbox()
-        for (i in intArrayOf(0, 1, 3, 2)) {
+        val order = intArrayOf(0, 1, 3, 2)
+        for ((k, i) in order.withIndex()) {
             val ch = a.chip(names[i], tab == i, colors[i], null, if (tab == i) 14f else 13f)
             if (tab == i) (ch.tag as android.widget.TextView).setTextColor(C.WHITE)
             ch.onClick { tab = i; rebuild() }
-            tabRow.addView(ch, lp(WRAP, WRAP).m(r = a.dp(8)))
+            tabRow.addView(ch, lp(WRAP, WRAP).m(r = if (k < order.size - 1) a.dp(8) else a.dp(6)))
         }
         hsTabs.addView(tabRow)
-        tabs.addView(hsTabs, lp(0, WRAP, 1f))
+        col.addView(hsTabs, lp(MATCH, WRAP).m(t = a.dp(18)))
         val sortLbl = a.label(when (sort) { "tier" -> "by tier ▾"; "recent" -> "recently cooked ▾"; "time" -> "quickest ▾"; "effort" -> "easiest ▾"; else -> "a–z ▾" })
-        sortLbl.setPadding(a.dp(6), a.dp(10), 0, a.dp(10))
+        sortLbl.setPadding(a.dp(6), a.dp(8), 0, a.dp(2))
         sortLbl.onClick { chooseSort() }
-        tabs.addView(sortLbl)
-        col.addView(tabs, lp(MATCH, WRAP).m(t = a.dp(18)))
+        col.addView(sortLbl, lp(WRAP, WRAP).also { it.gravity = Gravity.END })
 
         val list = Store.recipes.filter { inTab(it) }
         if (Store.recipes.isEmpty()) col.addView(emptyState(), lp(MATCH, WRAP).m(t = a.dp(30)))
@@ -289,6 +285,26 @@ class HomeScreen(a: MainActivity) : Screen(a) {
 
     private var shown = false
     /** [Store.version] when the page was last drawn: coming back to an unchanged home redraws nothing (no flicker after Settings). */
+    /**
+     * The script's swashes reach past the letters' own box (the P to the left, the é's accent to the right). A TextView
+     * clips its drawing to the area inside its padding, so padding can't make room: the text is centred in a box
+     * wider than the letters by the larger overhang on each side, and the whole thing shrinks until it fits [room].
+     */
+    private fun fitScript(t: android.widget.TextView, room: Int) {
+        val text = t.text.toString()
+        val ink = android.graphics.Rect()
+        t.paint.getTextBounds(text, 0, text.length, ink)
+        val adv = t.paint.measureText(text)
+        // a phone's font can draw a touch wider than measured: a few dp more on each side
+        val side = Math.max(Math.max(0f, -ink.left.toFloat()), Math.max(0f, ink.right - adv)) + a.dp(8)
+        val need = adv + 2 * side
+        val k = if (need > room && need > 0f) room / need else 1f
+        if (k < 1f) t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, t.textSize * k)
+        t.setPadding(0, 0, 0, 0)
+        t.gravity = Gravity.CENTER_HORIZONTAL
+        t.layoutParams = (t.layoutParams as android.widget.LinearLayout.LayoutParams).also { it.width = Math.ceil((need * k).toDouble()).toInt() }
+    }
+
     private var drawnAt = -1L
     override fun onShow() { missionRecipes(); if (shown && drawnAt != Store.version) rebuild(); shown = true }
     override fun onSynced() { missionRecipes(); rebuild() }

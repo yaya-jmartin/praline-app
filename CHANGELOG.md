@@ -2,6 +2,14 @@
 
 One entry per version: name, versionCode, date, and what it brought. The newest version is at the top.
 
+## 1.4.1 (versionCode 6) · 2026-10-22
+- **Settings swipe:** holding a swipe back out of Settings no longer stutters. The swipe measured the finger against the page, which moves with it; it now measures against the screen, and a held finger keeps the page still. A slide still finishing gives way to the finger at once.
+- **Title:** "Praliné" is no longer cut on either side. The script's swashes reach past the letters' box (the P to the left, the accent to the right); the title now makes room for its real ink and shrinks to fit beside the party.
+- **Category tabs:** the sort ("by tier") sits on its own line, so Meals, Desserts, Beverages and All all fit.
+- **Invite a chef:** a card explains chefs from another home: phones sync only over a shared Wi-Fi (no server yet), so meet on one Wi-Fi with the home lock off, pair once, and the party catches up whenever you're together; single recipes travel as files.
+- **Sync:** the 15-second live sync only redraws pages when something the chefs can see changed.
+- **Build:** the signed APK is also kept on the repository's `builds` branch, so it can go straight into the Praliné folder.
+
 ## 1.4 (versionCode 5) · 2026-10-22
 - **Parties of up to four chefs:**
   - pair up to three other phones; chefs you meet through another phone join the party too;

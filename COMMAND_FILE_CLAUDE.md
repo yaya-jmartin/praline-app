@@ -4,7 +4,7 @@ Strict working rules for Claude on this app. Read this file in full before answe
 If this file and a chat message disagree, Yaya's latest message wins and this file gets updated in the same change.
 Repository: `yaya-jmartin/praline-app` (private). This file lives at its root.
 
-App: **Praliné**, package `com.yaya.praline`, current version **1.4** (versionCode 5, built 2026-10-22: parties of four, mission invites, world packs, Beverages, OCR import, photo framing; first APK built and signed by GitHub Actions). Source: this repository (history from 1.1 on).
+App: **Praliné**, package `com.yaya.praline`, current version **1.4.1** (versionCode 6, 2026-10-22: Settings swipe stutter, title ink fit, tabs fit, invite card for chefs from another home, sync redraws only on change; 1.4 brought parties of four, mission invites, world packs, Beverages, OCR import, photo framing, and the first APK built and signed by GitHub Actions). Source: this repository (history from 1.1 on).
 
 ---
 
@@ -41,7 +41,7 @@ App: **Praliné**, package `com.yaya.praline`, current version **1.4** (versionC
 | Missions | `Missions` (logic; worlds from `Worlds.all()`), `MissionParty` (members, invites), `MissionInvite` (cards), `MissionMap` (mission layer on the map scene), `MissionScreen` | Templates removed in 1.4: spot recipes come from the packs |
 | Map scene (1.4) | `SceneView` + `SceneFx` (Scene.kt): camera, slice and picture memory, sprites, sprite sheets, live effects, one clock, taps. `WorldPack` reads `.praline-world` packs (format: `tools/map-editor/WORLD-FORMAT.md`), `Worlds` lists bundled (assets/worlds/<id>/, unzipped) and installed (filesDir/worlds/<id>.praline-world) worlds. Mission chrome (dais, lock, figures) in assets/missions/chrome/ | the map editor writes packs, the scene plays them |
 | Timers | `AlarmManager` + `TimerReceiver`, `BootReceiver`; hand-off to Pistachio with `ACTION_SET_TIMER` | |
-| Build / tests | Gradle → ProGuard → dx → aapt2 → apksigner; Robolectric 4.14.1. From 1.3 also `agp/` (Android Gradle Plugin 8.7.3, compileSdk 35) built by `.github/workflows/android.yml` on every push/PR: debug + release APKs, unit tests, Android Lint, artifacts kept 14 days. From 1.4 the release APK is signed there with the `praline` key from repository secrets `PRALINE_KEYSTORE_B64` + `PRALINE_KEY_PASSWORD` (artifact `praline-signed`); the 1.4+ APK Yaya installs comes from there (it has OCR) | signing alias `praline`, key + password only in `signing-backup/`, never in git or memory |
+| Build / tests | Gradle → ProGuard → dx → aapt2 → apksigner; Robolectric 4.14.1. From 1.3 also `agp/` (Android Gradle Plugin 8.7.3, compileSdk 35) built by `.github/workflows/android.yml` on every push/PR: debug + release APKs, unit tests, Android Lint, artifacts kept 14 days. From 1.4 the release APK is signed there with the `praline` key from repository secrets `PRALINE_KEYSTORE_B64` + `PRALINE_KEY_PASSWORD` (artifact `praline-signed`); the 1.4+ APK Yaya installs comes from there (it has OCR). From 1.4.1 a separate `publish` job (the only one with write access, never on pull requests) commits it to the `builds` branch as `Praline-<version>.apk`; Claude fetches it with git and copies it into the Praliné project folder | signing alias `praline`, key + password only in `signing-backup/`, never in git or memory |
 
 Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, CameraX for the scanner, Jetpack DataStore for prefs, Room if the cookbook outgrows one JSON file.
 
@@ -75,6 +75,7 @@ Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, Camera
 - **Two phones**: pair by QR or typed code on the same Wi-Fi, shared cookbook, sync while open on both.
 - **Timers**: own Pistachio-style timers, hand-off to Pistachio (Settings toggle, on by default).
 - **Settings** (swipe in from home), **friction log** (two-finger 600 ms hold + note, share to Discord).
+- **1.4.1**: held swipe out of Settings stays still (SwipeCatcher reads raw screen coordinates); the title pads and fits its real ink (`fitScript`); the sort sits under the tabs; "A chef from another home" card on Invite a chef; live sync redraws only when `Store.contentStamp()` changes.
 - **1.4**: parties of up to four chefs (offers and answers relayed through the party, live sync, optional home lock, stronger pairing); mission invites and party-size distances; world packs from the map editor; Beverages; read a recipe from a cookbook photo (GitHub build); photo framing (drag, pinch, exact crop); drag to reorder ingredients; paste steps; save needs ingredient + step + equipment or "No equipment needed"; new variant copies Main; abandon a quest; level-up shake, flash and chime; past days locked; shopping list today → Sunday.
 - **1.2**: party missions (World I "The Sunforge Sands", 10 must-cook spots ending at "The Calice"; Home bar → Missions); recipe files to send/open (`.praline`); sync and pairing only on the home Wi-Fi (Settings → Home dungeon access); equipment counts ("2 × Mixing bowl"), Kenwood and KCook as engineer limbs, mixing bowl; × to remove a step's picture, clip or timer; sharper QR scanner; portrait only; editor draft and quest step survive Android closing the app.
 
@@ -98,7 +99,8 @@ Upgrade path (suggest when Google Maven is reachable): Coil 3 for images, Camera
 | Recipe file opened while Praliné runs | `onNewIntent` → "Add …?" sheet | OK (1.2) |
 | World file opened (1.4) | `WorldPack.route` peeks for world.json → "Add the world …?" sheet; installs only on tap, replacing the same id; progress kept | OK (1.4) |
 | Leaving the map / map hidden (1.4) | the scene's clock stops (no frame scheduled when detached or its window is hidden); pictures are dropped, never `recycle()`d, so a frame still on the render thread can't hit a recycled bitmap (BlueStacks crash) | OK (1.4) |
-| Live sync while open (1.4) | every 10 ticks the ticker syncs each paired phone it knows the address of (15 s), only while the app is in front | OK (1.4) |
+| Live sync while open (1.4) | every 10 ticks the ticker syncs each paired phone it knows the address of (15 s), only while the app is in front; pages redraw only when the visible content changed (1.4.1) | OK (1.4.1) |
+| Finger held mid-swipe (1.4.1) | Settings stays exactly under the finger (raw screen coordinates); a slide still animating is cancelled when the finger takes over | OK (1.4.1) |
 | Home lock off (1.4) | pairing and sync work on any Wi-Fi, still paired + encrypted + wrong-code lockout; no location needed | OK (1.4, Yaya's choice) |
 | Location switched on later (1.4) | `Sync.announce` registers the phone on the network as soon as syncing is allowed | OK (1.4) |
 | Midnight while the board is open (1.4) | past days lock on the next redraw | OK |
@@ -156,6 +158,7 @@ Thresholds: recommend a refactor when a module passes **600 lines**, has been ed
 | S14 | Wrong-code lockout is global: someone on the network sending wrong codes blocks the party's sync for 10 minutes | Sync | Low (nuisance) | Per-address limits before a wider release |
 | S15 | **Cookbook photos read by OCR** (1.4) | Ocr, MlKitReader | None found | ML Kit's model is inside the app: no download, the picture never leaves the phone |
 | S16 | **Release key in GitHub secrets** (1.4) | repository secrets | Low | Secrets are write-only and never printed; the workflow deletes the key file after the build. Keep the repo private and the backup in signing-backup/ |
+| S17 | **Workflow write access** (1.4.1): the `publish` job can push to the repo | android.yml | Low | Only that job has `contents: write`, it never sees the key, only runs outside pull requests, and only writes the `builds` branch. The signed APKs live in the private repo's history |
 | S11 | Mission recipe ids are fixed (`mission-<world>-N`), so a crafted sync payload could overwrite them | Sync merge | Low (needs the pair key) | Covered by S1's fix |
 
 New risks are added here in the same change that introduces them, and named in that version's delivery reply.
