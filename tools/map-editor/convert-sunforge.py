@@ -143,6 +143,7 @@ def main(out_path):
     item(fx('sparks'), f['forge_sparks']['x'], f['forge_sparks']['y'], 'over', {'color': '#FFC266', 'rate': 1.2})
     item(fx('glow'), f['kiln_glow']['x'], f['kiln_glow']['y'], 'over', {'r': 26, 'color': '#FF8A3D', 'pulse': 2.6})
     item('fx-glow', f['campfire_flame']['x'], f['campfire_flame']['y'] - 10, 'over', {'r': 18, 'color': '#FFB347', 'pulse': 1.4})
+    item(fx('flame'), f['campfire_flame']['x'], f['campfire_flame']['y'], 'over', {'w': 12, 'h': 28, 'color': '#FF8A2A', 'core': '#FFD25A'})
     for s in f['smoke']:
         item(fx('smoke'), s['x'], s['y'], 'under', {'color': '#B8A898', 'rate': 1})
     for wtr in f['water']:
@@ -167,7 +168,7 @@ def main(out_path):
         spots.append({'id': sid, 'kind': 'recipe', 'name': 'The Calice' if i == 9 else t['title'], 'along': s['t'], 'x': s['x'], 'y': s['y'],
                       'side': s['side'], 'xp': GAPS[i], 'story': STORIES[i], 'recipe': 'recipes/%s.praline' % sid, 'icon': icon})
 
-    world = {'format': 'praline-world', 'v': 1, 'id': 'sunforge', 'kind': 'mission', 'name': 'The Sunforge Sands', 'intro': '',
+    world = {'format': 'praline-world', 'v': 1, 'id': 'sunforge', 'kind': 'mission', 'name': 'The Sunforge Sands', 'intro': '', 'ending': {'title': 'The Calice is lit', 'story': ''},
              'width': W, 'height': H, 'scale': 3,
              'title': {'text': '', 'x': 206, 'y': 150, 'size': 40, 'color': '#3B2414', 'rotate': 0, 'font': 'title'},
              'slices': slices, 'trail': {'points': points, 'length': round(length, 1)},

@@ -97,11 +97,14 @@ var Panels = (function () {
     var counts = { recipe: 0, story: 0 };
     p.spots.forEach(function (s) { counts[s.kind]++; });
     var th = Model.thresholds();
+    if (!w.ending) w.ending = { title: '', story: '' };
     b.appendChild(section('World', [
       UI.row('Name', text(w, 'name', { max: 40, onChange: function () { refreshHeader(); } })),
       UI.row('World id', text(w, 'id', { max: 32, clean: function (v) { return v.toLowerCase().replace(/[^a-z0-9-]/g, ''); } }),
         'Lowercase letters, digits and dashes. Mission progress is kept under this id, so never change it after the world ships.'),
       UI.row('Opening story (optional)', text(w, 'intro', { area: true, rows: 3, max: Model.STORY_MAX, placeholder: 'Shown when the party first opens this world.' })),
+      UI.row('Ending banner title (optional)', text(w.ending, 'title', { max: 40, placeholder: 'The Calice is lit' })),
+      UI.row('Ending story (optional)', text(w.ending, 'story', { area: true, rows: 3, max: Model.STORY_MAX, placeholder: 'Shown when the last spot is cooked.' })),
       el('p.summary', counts.recipe + ' recipe spots · ' + counts.story + ' story stops · ' + (th[th.length - 1] || 0) + ' fame to the end · ' +
         p.items.filter(function (i) { return !i.bake; }).length + ' live items')
     ]));
@@ -398,8 +401,9 @@ var Panels = (function () {
       var rows = Object.keys(d).map(function (k) {
         if (it.params[k] === undefined) it.params[k] = d[k];
         var label = { from: 'From angle (°)', to: 'To angle (°)', length: 'Length', count: 'How many', color: 'Colour', alpha: 'Strength', r: 'Radius', halo: 'Halo radius',
-          pulse: 'Pulse (s)', rx: 'Width', ry: 'Height', rate: 'Amount', w: 'Width', h: 'Height', tx: 'Ends at x', ty: 'Ends at y', width: 'Thickness' }[k] || k;
-        return UI.row(label, k === 'color' ? color(it.params, k, { what: 'items' }) : number(it.params, k, { step: k === 'alpha' || k === 'rate' ? 0.05 : 1, what: 'items' }));
+          pulse: 'Pulse (s)', rx: 'Width', ry: 'Height', rate: 'Amount', w: 'Width', h: 'Height', tx: 'Ends at x', ty: 'Ends at y', width: 'Thickness', flare: 'End flare', sparks: 'Sparks at the end', core: 'Core colour', period: 'Every (s)' }[k] || k;
+        if (typeof d[k] === 'boolean') return check(it.params, k, label, { what: 'items' });
+        return UI.row(label, k === 'color' || k === 'core' ? color(it.params, k, { what: 'items' }) : number(it.params, k, { step: k === 'alpha' || k === 'rate' ? 0.05 : k === 'period' || k === 'pulse' ? 0.1 : 1, what: 'items' }));
       });
       b.appendChild(el('div.grid2', rows));
       if (l.fx === 'motes') b.appendChild(el('p.hint', 'Dust motes float over the whole map; where you put this item does not matter.'));

@@ -3,20 +3,22 @@
 var Model = (function () {
   var W = 412, PPU = 3, SLICE = 525;
   var STORY_MAX = 600;
-  var FX = ['rays', 'halo', 'glow', 'glints', 'smoke', 'sparks', 'sand', 'heat', 'beam', 'motes'];
+  var FX = ['rays', 'halo', 'glow', 'glints', 'smoke', 'sparks', 'sand', 'heat', 'beam', 'motes', 'flame', 'ripples'];
   var FX_NAMES = { rays: 'God rays', halo: 'Sun halo', glow: 'Glow', glints: 'Water glints', smoke: 'Smoke',
-    sparks: 'Sparks', sand: 'Sand plume', heat: 'Heat shimmer', beam: 'Light beam', motes: 'Dust motes' };
+    sparks: 'Sparks', sand: 'Sand plume', heat: 'Heat shimmer', beam: 'Light beam', motes: 'Dust motes', flame: 'Campfire flame', ripples: 'Water ripples' };
   var FX_PARAMS = {
     rays: { from: 92, to: 172, length: 1500, count: 7, color: '#FFE7A6', alpha: 0.35 },
     halo: { r: 34, halo: 110, color: '#FFF1C2' },
-    glow: { r: 22, color: '#FFB347', pulse: 2.2 },
+    glow: { r: 22, halo: 44, color: '#FFB347', pulse: 2.2 },
     glints: { rx: 60, ry: 24, count: 6, color: '#FFFFFF' },
     smoke: { color: '#B8A898', rate: 1 },
     sparks: { color: '#FFC266', rate: 1 },
     sand: { color: '#E8C890', rate: 1 },
     heat: { w: 40, h: 60 },
-    beam: { tx: 120, ty: 200, width: 14, color: '#FFE7A6' },
-    motes: { count: 70, color: '#FFE9B8' }
+    beam: { tx: 120, ty: 200, width: 14, color: '#FFE7A6', flare: 30, sparks: true },
+    motes: { count: 70, color: '#FFE9B8' },
+    flame: { w: 12, h: 28, color: '#FF8A2A', core: '#FFD25A' },
+    ripples: { rx: 30, ry: 10, period: 3.2 }
   };
   var GAPS = [80, 120, 140, 160, 180, 200, 220, 240, 260, 300];
 
@@ -81,7 +83,7 @@ var Model = (function () {
     }
     return {
       format: 'praline-map-project', v: 1,
-      world: { id: 'new-world', kind: 'mission', name: 'A New World', intro: '', height: h,
+      world: { id: 'new-world', kind: 'mission', name: 'A New World', intro: '', height: h, ending: { title: '', story: '' },
         title: { text: 'A New World', x: 206, y: 150, size: 40, color: '#3B2414', rotate: -2, font: 'title' } },
       trail: anchors,
       spots: spots,
@@ -147,6 +149,8 @@ var Model = (function () {
     else if (p.world.height < 2400 || p.world.height > 4800) warnings.push('Maps between 2,400 and 4,800 units tall scroll best.');
     if (!trail().ok()) errors.push('Draw the trail first (at least two points).');
     if (!p.spots.length) errors.push('Add at least one spot on the trail.');
+    var end = p.world.ending || {};
+    if ((end.story || '').length > STORY_MAX) errors.push('The ending story is longer than ' + STORY_MAX + ' characters.');
     var ids = {};
     p.spots.forEach(function (s, i) {
       var label = '"' + (s.name || 'Spot ' + (i + 1)) + '"';

@@ -183,8 +183,13 @@ function ok(cond, what) { if (cond) { passed++; console.log('  ok  ' + what); } 
     Model.state.p.spots[4].reward = { kind: 'decoration', name: 'Brass spoon', item: 'palm-tree' };
     Model.state.p.spots[2].icon = 'palm-tree';
     Model.state.p.spots[1].story = 'Malik is gone, and there is a recipe on the counter.';
+    Model.state.p.world.ending = { title: 'The farm is fed', story: 'Malik comes back with a smile.' };
     Model.changed('spots');
   });
+  ok(await page.evaluate(() => {
+    const c = document.createElement('canvas').getContext('2d');
+    return Model.FX.every(k => { const it = { id: 'i9', x: 50, y: 50, params: {} }; Draw.drawFx(c, k, {}, it, 1.3); return true; });
+  }).catch(() => false), 'every effect, flame and ripples included, draws');
   await page.evaluate(() => MapView.scrollTo(2500));
   await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(SHOTS, 'editor-map.png') });
@@ -223,6 +228,7 @@ function ok(cond, what) { if (cond) { passed++; console.log('  ok  ' + what); } 
   ok(w.library['palm-tree'] && w.library['fx-glow'] && w.library['campfire-sheet'], 'the library holds what the world uses (icons and rewards included)');
   ok(w.spots[0].kind === 'recipe' && w.spots[4].reward.name === 'Brass spoon' && w.spots[2].kind === 'story', 'spot kinds and rewards are exported');
   ok(w.spots.every((x, i) => i === 0 || x.along >= w.spots[i - 1].along), 'spots are in trail order');
+  ok(w.ending && w.ending.title === 'The farm is fed', 'the ending banner is exported');
 
   // export is refused while a recipe spot has no recipe
   await page.evaluate(() => { Model.snapshot(); Model.state.p.spots[3].kind = 'recipe'; Model.changed('spots'); });
@@ -245,7 +251,8 @@ function ok(cond, what) { if (cond) { passed++; console.log('  ok  ' + what); } 
   await page.waitForFunction(() => Model.state.p.items.length === 4);
   const projAfter = await P();
   ok(JSON.stringify(projAfter) === JSON.stringify(projBefore), 'a saved project opens exactly as it was');
-  ok(await page.evaluate(() => Model.state.recipes.get(Model.state.p.spots[0].id).title === 'Camel Cheesecake' && !!Model.state.recipes.get(Model.state.p.spots[0].id).cover), 'its recipes and covers come back');
+  await page.waitForFunction(() => Model.state.recipes.get(Model.state.p.spots[0].id), null, { timeout: 5000 }).catch(() => {});
+  ok(await page.evaluate(() => Model.state.recipes.get(Model.state.p.spots[0].id)?.title === 'Camel Cheesecake' && !!Model.state.recipes.get(Model.state.p.spots[0].id).cover), 'its recipes and covers come back');
 
   // --- open the exported pack, and the converted Sunforge pack
   console.log('open packs');
@@ -256,12 +263,13 @@ function ok(cond, what) { if (cond) { passed++; console.log('  ok  ' + what); } 
   p = await P();
   ok(p.spots.length === 10 && p.spots[0].name === 'Camel Cheesecake' && p.released === true && p.parchment.mode === 'none', 'an exported pack opens again for editing, marked as shipped');
   ok(p.nextSpot === 12, 'new spots in an opened pack never reuse an id');
+  ok(p.world.ending.story === 'Malik comes back with a smile.', 'the ending banner comes back with the pack');
   const [ch7] = await Promise.all([page.waitForEvent('filechooser'), page.click('#open-file')]);
   await ch7.setFiles(sun);
   await page.waitForFunction(() => Model.state.p.world.id === 'sunforge' && !document.querySelector('.modal-back'));
   await page.waitForTimeout(300);
   p = await P();
-  ok(p.spots.length === 10 && p.spots[9].name === 'The Calice' && p.items.length === 26, 'The Sunforge Sands opens with its 10 spots and 26 effects (' + p.spots.length + ', ' + p.spots[9].name + ', ' + p.items.length + ')');
+  ok(p.spots.length === 10 && p.spots[9].name === 'The Calice' && p.items.length === 27, 'The Sunforge Sands opens with its 10 spots and 27 effects (' + p.spots.length + ', ' + p.spots[9].name + ', ' + p.items.length + ')');
   await page.waitForTimeout(300);
   await page.evaluate(() => MapView.scrollTo(600));
   await page.waitForTimeout(300);

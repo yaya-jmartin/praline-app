@@ -8,7 +8,7 @@ import io, json, math, re, sys, zipfile
 
 PACK_MAX, ENTRY_MAX, ENTRIES_MAX = 25 * 1024 * 1024, 8 * 1024 * 1024, 400
 SAFE = re.compile(r'^(slices|recipes|library)/[A-Za-z0-9._-]{1,80}$')
-FX = {'rays', 'halo', 'glow', 'glints', 'smoke', 'sparks', 'sand', 'heat', 'beam', 'motes'}
+FX = {'rays', 'halo', 'glow', 'glints', 'smoke', 'sparks', 'sand', 'heat', 'beam', 'motes', 'flame', 'ripples'}
 
 
 def check(path):
@@ -40,12 +40,17 @@ def check(path):
     need(w.get('v') == 1, 'v is not 1')
     need(isinstance(w.get('id'), str) and re.match(r'^[a-z0-9-]{1,32}$', w['id']), 'bad world id')
     need(w.get('width') == 412, 'width is not 412')
-    need(w.get('scale') == 3, 'scale is not 3')
+    need(w.get('scale') in (2, 3), 'scale is not 2 or 3')
+    S = w.get('scale') if w.get('scale') in (2, 3) else 3
+    end = w.get('ending')
+    if end is not None:
+        need(isinstance(end, dict) and isinstance(end.get('title', ''), str) and isinstance(end.get('story', ''), str), 'ending is not {title, story}')
+        need(isinstance(end, dict) and len(end.get('story', '')) <= 600, 'ending story is longer than 600 characters')
     H = w.get('height', 0)
     need(1000 <= H <= 6000, 'height out of range')
     need(isinstance(w.get('name'), str) and w['name'].strip(), 'no name')
 
-    # slices cover 0..height with no gap, at 1236 px wide
+    # slices cover 0..height with no gap, at 412 * scale px wide
     try:
         from PIL import Image
     except ImportError:
@@ -56,9 +61,9 @@ def check(path):
         need(s['file'] in names, 'missing slice %s' % s['file'])
         if Image and s['file'] in names:
             im = Image.open(io.BytesIO(z.read(s['file'])))
-            need(im.format == 'WEBP', '%s is not WebP' % s['file'])
-            need(im.size[0] == 1236, '%s is %d px wide' % (s['file'], im.size[0]))
-            need(abs(im.size[1] - round(s['height'] * 3)) <= 1, '%s is %d px tall for %s units' % (s['file'], im.size[1], s['height']))
+            need(im.format in ('WEBP', 'JPEG'), '%s is not WebP or JPEG' % s['file'])
+            need(im.size[0] == 412 * S, '%s is %d px wide' % (s['file'], im.size[0]))
+            need(abs(im.size[1] - round(s['height'] * S)) <= 1, '%s is %d px tall for %s units' % (s['file'], im.size[1], s['height']))
         at = s['top'] + s['height']
     need(abs(at - H) < 0.01, 'slices end at %s, map height is %s' % (at, H))
 
