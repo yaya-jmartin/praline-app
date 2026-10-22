@@ -116,10 +116,11 @@ function ok(cond, what) { if (cond) { passed++; console.log('  ok  ' + what); } 
   ok(rec.r.photo && rec.r.orig && rec.r.photo !== rec.r.orig && rec.photos.length === 2, 'the cover is the photo, with the original kept for filters');
   ok(rec.r.world === 'new-world', 'the recipe knows its world');
 
-  // spot 2: upload a .praline made by the app's format (from the Sunforge converter)
+  // spot 2: upload a .praline from the app's own Sunforge world (app/assets/worlds/sunforge, zipped here as a pack)
+  const sunDir = path.resolve(HERE, '..', '..', '..', 'app', 'assets', 'worlds', 'sunforge');
   const sun = path.join(OUT, 'sunforge.praline-world');
-  execFileSync('python3', [path.resolve(HERE, '..', 'convert-sunforge.py'), sun]);
-  const sunZip = await page.evaluate(async b => { const f = await Zip.read(new Uint8Array(b).buffer); return Array.from(f['recipes/4.praline']); }, Array.from(fs.readFileSync(sun)));
+  execFileSync('python3', ['-c', 'import os,sys,zipfile\nd,o=sys.argv[1:3]\nwith zipfile.ZipFile(o,"w") as z:\n  for r,_,fs in os.walk(d):\n    for f in fs: p=os.path.join(r,f); z.write(p,os.path.relpath(p,d))', sunDir, sun]);
+  const sunZip = Array.from(fs.readFileSync(path.join(sunDir, 'recipes', '4.praline')));
   p = await P();
   s = await trailPoint(p.spots[1].along);
   await page.mouse.click(s.x, s.y);
@@ -269,7 +270,7 @@ function ok(cond, what) { if (cond) { passed++; console.log('  ok  ' + what); } 
   await page.waitForFunction(() => Model.state.p.world.id === 'sunforge' && !document.querySelector('.modal-back'));
   await page.waitForTimeout(300);
   p = await P();
-  ok(p.spots.length === 10 && p.spots[9].name === 'The Calice' && p.items.length === 27, 'The Sunforge Sands opens with its 10 spots and 27 effects (' + p.spots.length + ', ' + p.spots[9].name + ', ' + p.items.length + ')');
+  ok(p.spots.length === 10 && p.spots[9].name === 'The Calice' && p.items.length === 16 && p.world.ending.title === 'The Calice is lit', 'The Sunforge Sands opens with its 10 spots, 16 items and its ending (' + p.spots.length + ', ' + p.spots[9].name + ', ' + p.items.length + ')');
   await page.waitForTimeout(300);
   await page.evaluate(() => MapView.scrollTo(600));
   await page.waitForTimeout(300);

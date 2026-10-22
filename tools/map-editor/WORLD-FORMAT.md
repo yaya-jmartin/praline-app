@@ -20,7 +20,7 @@ A plain zip (stored or deflated). Entry names use only `A-Z a-z 0-9 . _ -` insid
 | Entry | What |
 | --- | --- |
 | `world.json` | Everything below. At most 1 MB. |
-| `slices/sNN.webp` | The flattened map (parchment + art + baked items), opaque WebP (JPEG is also read). The editor writes 1236 × 1575 px slices (525 units); the last slice may be shorter. The scene places each slice by its `top` and `height` in units, never by its pixel size. |
+| `slices/sNN.webp` (or `.jpg`) | The flattened map (parchment + art + baked items), opaque WebP (JPEG is also read). The editor writes 1236 × 1575 px slices (525 units); the last slice may be shorter. The scene places each slice by its `top` and `height` in units, never by its pixel size. |
 | `recipes/<spotId>.praline` | One recipe file per recipe spot, exactly the app's `.praline` format (`praline.json` + `photos/*.jpg`), cover picture included. |
 | `library/<file>` | PNG or WebP pictures used by items, icons and rewards. |
 

@@ -34,8 +34,7 @@ An autosave draft is kept in the browser in case the tab closes.
 - Plain scripts, no build: `js/` (zip, geometry, model, drawing, recipe form, file I/O, map canvas, panels,
   preview, app). `js/assets.js` embeds the default parchment and the app fonts; rebuild it with
   `python3 tools/map-editor/make-assets.py`.
-- `python3 tools/map-editor/convert-sunforge.py out.praline-world` builds The Sunforge Sands from the app's
-  current mission assets, a real pack for testing the map scene (its stories are placeholders).
+- The app's own Sunforge world lives unzipped in `app/assets/worlds/sunforge/`; zip that folder to open it here.
 - `python3 tools/map-editor/check-pack.py some.praline-world` checks a pack against the format.
 - `SHOTS=dir node tools/map-editor/test/run.js` runs the end-to-end test in headless Chromium (Playwright),
   saving screenshots to `dir`.
