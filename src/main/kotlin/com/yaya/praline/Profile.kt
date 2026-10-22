@@ -200,7 +200,7 @@ class ProfileScreen(a: MainActivity, var chef: Chef, val readOnly: Boolean) : Sc
             b.onClick { a.push(PairScreen(a)) }
             col.addView(b, lp(MATCH, WRAP).m(t = a.dp(12)))
         }
-        if (party.isNotEmpty()) col.addView(a.note("Phones sync by themselves every few seconds while Praliné is open on each, on the same Wi-Fi.", 11.5f), lp(MATCH, WRAP).m(t = a.dp(8)))
+        if (party.isNotEmpty()) col.addView(a.note("Phones sync by themselves every few seconds while Praliné is open on each, " + (if (HomeWifi.locked(a)) "on your home Wi-Fi." else "on the same Wi-Fi."), 11.5f), lp(MATCH, WRAP).m(t = a.dp(8)))
     }
 
     private fun edit() {
