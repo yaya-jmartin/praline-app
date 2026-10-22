@@ -162,7 +162,7 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         fab.background = fbg
         fab.addView(a.icon("plus", 30, 0, C.WHITE, 11f), flp(a.dp(30), a.dp(30), Gravity.CENTER).m(r = fbg.offsetPx, b = fbg.offsetPx))
         fab.pressable()
-        fab.onClick { a.push(EditorScreen(a, null)) }
+        fab.onClick { addRecipe() }
         fab.contentDescription = "Add a recipe"
         bar.addView(fab, flp(a.dp(70), a.dp(70), Gravity.END or Gravity.BOTTOM).m(r = a.dp(20), b = a.dp(4)))
         bar.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
@@ -182,6 +182,16 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         else -> list.sortedBy { it.title.lowercase() }
     }
 
+    /** Write a recipe, or (where the reader is in the build) read one from a cookbook page. */
+    private fun addRecipe() {
+        if (!Ocr.available) { a.push(EditorScreen(a, null)); return }
+        val s = Sheet(a, "A new recipe")
+        s.body.addView(a.note("Read from a photo stays on this phone: the text is read by the phone itself, then you check it in the editor.", 12f), lp(MATCH, WRAP).m(b = a.dp(6)))
+        s.button("Read a cookbook page") { Ocr.start(a) }
+        s.button("Write it", primary = true) { a.push(EditorScreen(a, null)) }
+        s.show()
+    }
+
     private fun emptyState(): View {
         val c = a.card(C.LILAC, 18, 18)
         c.gravity = Gravity.CENTER_HORIZONTAL
@@ -189,7 +199,7 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         c.addView(a.script("A blank grimoire", 34f), lp(WRAP, WRAP).m(t = a.dp(4)))
         c.addView(a.note("Every recipe you add becomes a card here, ranked from Tier S down. Cooking them earns you fame.", 13.5f).also { it.gravity = Gravity.CENTER })
         val b = a.bigButton("Write the first one", C.RASP, C.WHITE, C.INK, "plus")
-        b.onClick { a.push(EditorScreen(a, null)) }
+        b.onClick { addRecipe() }
         c.addView(b, lp(WRAP, WRAP).m(t = a.dp(14)))
         return c
     }

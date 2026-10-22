@@ -1,6 +1,9 @@
 # Builds Praliné with the official Android tools on GitHub's machines, runs every test and Android Lint,
 # and keeps the APKs, test results, screenshots and lint report as downloadable artifacts.
-# Nothing is signed with the release key or published here: that waits for Yaya's approval.
+# The release APK is signed with the "praline" key when the repository's secrets hold it (issue #5):
+#   PRALINE_KEYSTORE_B64  the release.jks file, base64-encoded
+#   PRALINE_KEY_PASSWORD  its password
+# The signed APK is kept as the "praline-signed" artifact. Publishing a Release stays a manual step for Yaya.
 name: Android build
 
 on:
@@ -30,9 +33,35 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Unpack the release key
+        env:
+          KEYSTORE_B64: ${{ secrets.PRALINE_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "PRALINE_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          else
+            echo "No signing secrets: the release APK stays unsigned."
+          fi
+
       - name: Build, test and lint
         working-directory: agp
+        env:
+          PRALINE_KEY_PASSWORD: ${{ secrets.PRALINE_KEY_PASSWORD }}
         run: ./gradlew --no-daemon --stacktrace assembleDebug assembleRelease testDebugUnitTest lintDebug
+
+      - name: Forget the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Keep the signed APK
+        if: env.PRALINE_KEYSTORE != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: praline-signed
+          path: agp/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Keep the results
         if: always()

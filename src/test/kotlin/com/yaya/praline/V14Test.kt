@@ -355,4 +355,35 @@ class V14Test {
         assertTrue(p.complete)
         assertTrue(Missions.unlock(null, w, p).isEmpty())
     }
+
+    @Test fun aCookbookPageBecomesARecipe() {
+        val page = """
+            Lemon Drizzle Cake
+            Serves 8 · 45 minutes
+            Ingredients
+            225 g butter
+            225 g caster sugar
+            4 eggs
+            2 lemons, zested
+            Method
+            1. Heat the oven to 180°C.
+            2. Beat the butter and sugar
+            until pale and creamy.
+            3. Add the eggs one at a time.
+        """.trimIndent()
+        val r = Ocr.parse(page)
+        assertEquals("Lemon Drizzle Cake", r.title)
+        assertEquals(8, r.servings)
+        assertEquals(45, r.timeMin)
+        val v = r.variant(0)
+        assertEquals(listOf("butter", "caster sugar", "eggs", "lemons, zested"), v.ingredients.map { it.name })
+        assertEquals(225.0, v.ingredients[0].qty!!, 1e-9)
+        assertEquals(3, v.steps.size)
+        assertEquals("Beat the butter and sugar until pale and creamy.", v.steps[1].text)
+        // a page without headings: amounts first, then the method
+        val plain = Ocr.parse("Crêpes\n250 g flour\n3 eggs\n50 cl milk\nWhisk everything together.\n\nRest the batter one hour.\n\nCook in a hot pan.")
+        assertEquals("Crêpes", plain.title)
+        assertEquals(3, plain.variant(0).ingredients.size)
+        assertEquals(3, plain.variant(0).steps.size)
+    }
 }

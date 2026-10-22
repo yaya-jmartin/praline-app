@@ -801,4 +801,30 @@ class ScreensTest {
         assertTrue(has(root, "Steps · 3"))
         longShot(a, "64-editor-pasted-steps")
     }
+
+    @Test fun readACookbookPageIntoTheEditor() {
+        val a = launch()
+        val before = Ocr.reader
+        Ocr.reader = object : TextReader {
+            override fun read(c: android.content.Context, b: Bitmap, done: (String?) -> Unit) { done("Pea soup\nIngredients\n500 g peas\n1 onion\nMethod\n1. Soften the onion.\n2. Add the peas and simmer.") }
+        }
+        try {
+            val root = a.window.decorView
+            byDesc(root, "Add a recipe").performClick(); idle()
+            assertTrue(has(root, "Read a cookbook page"))
+            shot(root, "65-add-recipe-choice")
+            val shotFile = File(a.cacheDir, "shots/page.jpg"); shotFile.parentFile!!.mkdirs()
+            java.nio.file.Files.copy(repoFile("src/test/resources/photos/cookies.jpg").toPath(), shotFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            tap(root, "Read a cookbook page"); idle()
+            assertTrue(has(root, "Take a photo"))
+            tap(root, "Cancel"); idle()
+            Ocr.readFile(a, shotFile)
+            for (i in 0 until 40) { Thread.sleep(50); idle(50); if (a.top() is EditorScreen) break }
+            val e = a.top() as EditorScreen
+            assertEquals("Pea soup", e.r.title)
+            assertEquals(2, e.r.variant(0).ingredients.size)
+            assertEquals(2, e.r.variant(0).steps.size)
+            longShot(a, "66-editor-from-page")
+        } finally { Ocr.reader = before }
+    }
 }

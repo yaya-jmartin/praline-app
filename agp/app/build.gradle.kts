@@ -34,7 +34,8 @@ android {
     sourceSets {
         getByName("main") {
             manifest.srcFile(agpManifest)
-            java.srcDirs(File(repo, "src/main/kotlin"))
+            // the ML Kit text reader exists only in this build (Google's servers aren't reachable from the hand-made one)
+            java.srcDirs(File(repo, "src/main/kotlin"), "src/ocr/kotlin")
             res.srcDirs(File(repo, "app/res"))
             assets.srcDirs(File(repo, "app/assets"))
         }
@@ -42,11 +43,23 @@ android {
         getByName("test") { java.srcDirs(File(repo, "src/test/kotlin")) }
     }
 
+    // The release key comes from GitHub's secrets only (the workflow writes it to a temporary file);
+    // without them the release APK is built unsigned, as before.
+    val keystore = System.getenv("PRALINE_KEYSTORE")?.takeIf { it.isNotEmpty() && File(it).exists() }
+    signingConfigs {
+        if (keystore != null) create("release") {
+            storeFile = File(keystore)
+            storePassword = System.getenv("PRALINE_KEY_PASSWORD")
+            keyAlias = "praline"
+            keyPassword = System.getenv("PRALINE_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         getByName("release") {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // signing comes later, once the key's new password is in GitHub's secrets
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -77,6 +90,8 @@ kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
 dependencies {
     implementation("com.google.zxing:core:3.5.3")
+    // on-device text recognition with the Latin model inside the app: no download, no picture sent anywhere
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
 }
