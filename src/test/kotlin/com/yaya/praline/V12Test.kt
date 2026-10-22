@@ -176,6 +176,6 @@ class V12Test {
         assertTrue(Missions.started(w) > 0L)
         assertTrue(Sync.payload(null, false).has("missions"))
         // every template has a title, ingredients and steps
-        for (i in w.spots.indices) { val t = w.spots[i].recipe(); assertTrue(t.title.isNotEmpty()); assertTrue(t.variants[0].ingredients.size >= 3); assertTrue(t.variants[0].steps.size >= 4) }
+        for (i in w.spots.indices) { val t = w.spots[i].recipe()!!; assertTrue(t.title.isNotEmpty()); assertTrue(t.variants[0].ingredients.size >= 3); assertTrue(t.variants[0].steps.size >= 4) }
     }
 }

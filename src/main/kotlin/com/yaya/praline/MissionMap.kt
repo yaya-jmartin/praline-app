@@ -39,9 +39,6 @@ class MissionMap(c: Context, world: WorldPack.World, var progress: Missions.Prog
 
     init {
         for (i in 1 until trailX.size) trailLen[i] = trailLen[i - 1] + Math.hypot((trailX[i] - trailX[i - 1]).toDouble(), (trailY[i] - trailY[i - 1]).toDouble()).toFloat()
-        val along = FloatArray(world.spots.size)
-        for (i in along.indices) along[i] = world.spots[i].along
-        Missions.spotAlong = along
         pText.typeface = F.semibold(c)
         lit = progress.complete
         contentDescription = "world map"

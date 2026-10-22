@@ -14,7 +14,13 @@ object Worlds {
     private var ctx: Context? = null
     private var cache: List<WorldPack.World>? = null
 
-    fun init(c: Context) { ctx = c.applicationContext ?: c }
+    fun init(c: Context) {
+        val app = c.applicationContext ?: c
+        // a new app (tests start one each time) reads its own packs again
+        if (app !== ctx) { reload(); ctx = app }
+    }
+    /** The app, for reading packs and copying their pictures (null in pure logic tests). */
+    fun context(): Context? = ctx
 
     fun all(): List<WorldPack.World> {
         cache?.let { return it }

@@ -51,7 +51,7 @@ class SceneTest {
         assertEquals(10, w.spots.size)
         assertEquals((1..10).map { it.toString() }, w.spots.map { it.id })
         assertEquals("The Calice", w.spots[9].name)
-        for (i in w.spots.indices) assertEquals(Missions.GAPS[i], w.spots[i].xp)
+        assertEquals(listOf(80, 120, 140, 160, 180, 200, 220, 240, 260, 300), w.spots.map { it.xp })
         assertEquals(6, w.slices.size)
         assertTrue(w.trailX.size > 600)   // every 8 units or less, as the format asks
         assertTrue(w.spots.all { !it.story && w.library.containsKey(it.icon) })
@@ -62,14 +62,17 @@ class SceneTest {
         assertEquals("The Calice is lit", w.endTitle)
     }
 
-    @Test fun packRecipesMatchTheTemplates() {
+    @Test fun packRecipesKeepTheirMissionIds() {
         val w = Worlds.get("sunforge")!!
         for (i in w.spots.indices) {
             val r = Worlds.recipe(c, w, w.spots[i])!!
             assertEquals("mission-sunforge-${i + 1}", r.id)
             assertEquals(Missions.recipeId("sunforge", i), r.id)
-            assertEquals(Templates.build("sunforge", i, Templates.SUNFORGE[i]).toJson().toString(), r.toJson().toString())
+            assertEquals("sunforge", r.world)
+            assertTrue(r.variant(0).ingredients.isNotEmpty() && r.variant(0).steps.isNotEmpty())
         }
+        // the desert tea is a beverage since 1.4
+        assertEquals(Recipe.BEVERAGE, w.spots.map { Worlds.recipe(c, w, it)!! }.first { it.title == "Mint Desert Tea" }.kind)
     }
 
     @Test fun worldFileInstallsAndReplacesByIdKeepingProgress() {

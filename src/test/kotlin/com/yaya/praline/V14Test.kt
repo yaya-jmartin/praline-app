@@ -62,7 +62,6 @@ class V14Test {
         r.dessert = true; assertEquals(Recipe.DESSERT, r.kind)
         r.dessert = false; assertEquals(Recipe.MEAL, r.kind)
         assertEquals(3, Recipe.KINDS.size)
-        assertTrue(Templates.SUNFORGE.any { it.kind == Recipe.BEVERAGE })
     }
 
     @Test fun photoFramingIsSavedAndKeptInBounds() {
@@ -332,5 +331,28 @@ class V14Test {
         assertEquals(listOf("Melt the butter.", "Add 2 eggs and mix well."), StepImport.split("Melt the butter.\n\nAdd 2 eggs\nand mix well."))
         assertEquals(listOf("Melt the butter.", "Add 2 eggs."), StepImport.split("- Melt the butter.\n• Add 2 eggs.\n\n"))
         assertTrue(StepImport.split("  \n ").isEmpty())
+    }
+
+    @Test fun storyStopsPassAsSoonAsReached() {
+        val spots = listOf(
+            Missions.Spot("1", "Oasis", 50, 50, story = true, along = 0.3f, text = "Water at last.") { null },
+            Missions.Spot("2", "Flatbread", 100, 50, along = 0.6f) { null },
+            Missions.Spot("3", "Gate", 150, 50, story = true, along = 1f) { null })
+        val w = Missions.World("trial", "Trial", spots)
+        val t0 = System.currentTimeMillis() - 10 * H
+        Missions.start(c, w, t0)
+        assertEquals(0, Missions.progress(w).done)
+        Store.me.history.add(CookEntry("x", "Classic", t0 + H, 60))
+        var p = Missions.progress(w)
+        assertEquals(1, p.done); assertFalse(p.waiting)
+        assertEquals(0.3f + 0.3f * 10f / 50f, p.along, 0.001f)
+        Store.me.history.add(CookEntry("x", "Classic", t0 + 2 * H, 60))
+        p = Missions.progress(w)
+        assertTrue(p.waiting); assertEquals(1, p.done)
+        // cooking the recipe spot opens the trail, and the story stop at the end passes on its own
+        Store.me.history.add(CookEntry("mission-trial-2", "Classic", t0 + 3 * H, 40))
+        p = Missions.progress(w)
+        assertTrue(p.complete)
+        assertTrue(Missions.unlock(null, w, p).isEmpty())
     }
 }
