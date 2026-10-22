@@ -53,7 +53,7 @@ class SceneTest {
         assertEquals("The Calice", w.spots[9].name)
         for (i in w.spots.indices) assertEquals(Missions.GAPS[i], w.spots[i].xp)
         assertEquals(6, w.slices.size)
-        assertEquals(333, w.trailX.size)
+        assertTrue(w.trailX.size > 600)   // every 8 units or less, as the format asks
         assertTrue(w.spots.all { !it.story && w.library.containsKey(it.icon) })
         // the mission world and the pack agree spot by spot: same thresholds, same names
         var at = 0
