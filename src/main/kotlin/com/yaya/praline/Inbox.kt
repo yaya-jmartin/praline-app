@@ -3,13 +3,13 @@ package com.yaya.praline
 import android.view.Gravity
 import android.view.View
 
-/** A change the other chef sent: what it is, and Accept / Refuse. */
+/** A change another chef sent: what it is, and Accept / Refuse. */
 object Inbox {
     fun card(a: MainActivity, p: Proposal, after: () -> Unit): View {
         val c = a.card(C.MINT, 12, 10)
         val row = a.hbox(); row.gravity = Gravity.TOP
-        val peer = Store.peer
-        if (peer != null) row.addView(Medallion(a, peer.portrait, C.MINT), lp(a.dp(40), a.dp(40)).m(r = a.dp(10)))
+        val from = Store.chef(p.from)
+        if (from != null) row.addView(Medallion(a, from.portrait, C.MINT), lp(a.dp(40), a.dp(40)).m(r = a.dp(10)))
         val col = a.vbox()
         val what = when (p.kind) { "variant" -> "a new variant for"; "special" -> "their special for"; else -> "a change to" }
         col.addView(a.label("${p.fromName} sent $what"))

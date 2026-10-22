@@ -155,3 +155,11 @@ fun fmtDuration(min: Int): String = when {
     min % 60 == 0 -> "${min / 60} h"
     else -> "${min / 60} h ${min % 60}"
 }
+
+/** How each kind of recipe looks: meals, desserts and (from 1.4) beverages. */
+object Kinds {
+    fun name(k: String): String = when (k) { Recipe.DESSERT -> "Dessert"; Recipe.BEVERAGE -> "Beverage"; else -> "Meal" }
+    fun plural(k: String): String = when (k) { Recipe.DESSERT -> "Desserts"; Recipe.BEVERAGE -> "Beverages"; else -> "Meals" }
+    fun color(k: String): Int = when (k) { Recipe.DESSERT -> C.RASP; Recipe.BEVERAGE -> C.BLUE; else -> C.TANG }
+    fun icon(k: String): String = when (k) { Recipe.DESSERT -> "potion"; Recipe.BEVERAGE -> "tankard"; else -> "bowl" }
+}

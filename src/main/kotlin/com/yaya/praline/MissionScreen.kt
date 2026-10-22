@@ -7,7 +7,8 @@ import android.widget.ScrollView
 
 /**
  * A party mission: the world map with the party on its trail, the party's XP and the next spot to cook.
- * Both chefs' cooks move the party; a spot's recipe joins the grimoire when the party reaches it.
+ * Every member's cooks move the party; a spot's recipe joins the grimoire when the party reaches it.
+ * 1.4: a chef sets off and invites the others, who join from their own phone ([MissionInvite]).
  */
 class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFORGE) : Screen(a) {
     private var map: MissionMap? = null
@@ -15,15 +16,17 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
     private var placed = false
 
     override fun build(): View {
-        Missions.start(a, world)
         val col = a.vbox()
 
         // the map first: it knows where the spots sit along the trail
-        val m = MissionMap(a, world.asset, Missions.progress(world))
-        map = m
         val p = Missions.progress(world)
+        val m = MissionMap(a, world.pack ?: Worlds.get(world.id)!!, p)
+        map = m
         m.progress = p
+        // one figure per chef walking (the whole party before anyone set off)
+        m.chefs = Math.max(1, Math.min(Store.PARTY_MAX, if (Missions.started(world) > 0L) Missions.members(world).size else 1 + Store.party().size))
         unlock(p)
+        tellStories(p)
 
         val head = a.vbox()
         head.setPadding(a.dp(18), a.dp(6), a.dp(18), a.dp(10))
@@ -39,7 +42,7 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
         val xr = a.hbox()
         xr.addView(a.label("Party XP", C.INK), lp(WRAP, WRAP).m(r = a.dp(8)))
         xr.addView(FameBar(a, p.into.toFloat() / p.span), lp(0, a.dp(14), 1f))
-        val goal = p.next?.xp ?: p.xp
+        val goal = if (p.next != null) p.xpAt(p.done) else p.xp
         xr.addView(a.body(if (p.complete) "${p.xp} XP" else "${Math.min(p.xp, goal)} / $goal XP", 12f, C.INK, 600), lp(WRAP, WRAP).m(l = a.dp(8)))
         head.addView(xr, lp(MATCH, WRAP).m(t = a.dp(2)))
 
@@ -48,6 +51,11 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
         nr.addView(dots(p))
         head.addView(nr, lp(MATCH, WRAP).m(t = a.dp(6)))
         if (p.complete) head.addView(banner(), lp(MATCH, WRAP).m(t = a.dp(10)))
+        when {
+            Missions.started(world) <= 0L -> MissionInvite.setOff(a, head, world) { rebuild() }
+            Missions.invitedHere(world) -> head.addView(MissionInvite.card(a, world) { rebuild() }, lp(MATCH, WRAP).m(t = a.dp(8)))
+            else -> MissionInvite.members(a, head, world, p) { rebuild() }
+        }
         col.addView(head)
 
         val scroll = object : ScrollView(a) {
@@ -73,8 +81,9 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
     }
 
     private fun nextLine(p: Missions.Progress): String {
-        val n = p.next ?: return "The Calice is lit. Chapter complete."
-        val title = n.recipe().title
+        val n = p.next ?: return (world.endTitle.ifEmpty { "The end of the road" }) + ". Chapter complete."
+        if (n.story) return "Next stop: ${n.label} · ${p.toNext} XP to go"
+        val title = n.recipe()?.title ?: n.label
         return if (p.waiting) "Next spot: $title · must cook" else "Next spot: $title · ${p.toNext} XP to go"
     }
 
@@ -97,8 +106,9 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
         b.setPadding(a.dp(14), a.dp(10), a.dp(14), a.dp(12))
         b.addView(a.icon("map", 26, C.CARD), lp(a.dp(26), a.dp(26)).m(r = a.dp(10)))
         val t = a.vbox()
-        t.addView(a.body("The Calice is lit", 15f, C.INK, 700))
-        t.addView(a.note("Your party crossed the Sunforge Sands. All ten recipes are in the grimoire.", 12f, C.INK))
+        val cooked = world.spots.count { !it.story }
+        t.addView(a.body(world.endTitle.ifEmpty { "The end of the road" }, 15f, C.INK, 700))
+        t.addView(a.note(world.endStory.ifEmpty { "Your party crossed ${world.name}. All $cooked recipes are in the grimoire." }, 12f, C.INK))
         b.addView(t, lp(0, WRAP, 1f))
         return b
     }
@@ -107,9 +117,16 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
         val p = map?.progress ?: Missions.progress(world)
         val spot = world.spots[i]
         val id = Missions.recipeId(world.id, i)
-        val title = spot.recipe().title
+        val where = if (i == world.spots.size - 1) "${spot.label} · the last spot" else "Spot ${i + 1} of ${world.spots.size}"
+        if (spot.story) {
+            val s = Sheet(a, spot.label)
+            if (i < p.done) s.body.addView(a.note(spot.text.ifEmpty { "$where. The party passed through here." }, 13f))
+            else s.body.addView(a.note("$where. The party needs ${Math.max(0, p.xpAt(i) - p.xp)} more XP to get here.", 13f))
+            s.button("Close", primary = true).show()
+            return
+        }
+        val title = spot.recipe()?.title ?: spot.label
         val s = Sheet(a, title)
-        val where = if (i == world.spots.size - 1) "The Calice · the last spot" else "Spot ${i + 1} of ${world.spots.size}"
         when {
             i < p.done -> {
                 s.body.addView(a.note("$where. The party cooked it here. ✓", 13f))
@@ -120,8 +137,8 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
                 openButton(s, id)
             }
             else -> {
-                val need = Math.max(0, spot.xp - p.xp)
-                s.body.addView(a.note("$where. Locked: the party needs $need more XP to reach it. Any recipe either of you cooks counts.", 13f))
+                val need = Math.max(0, p.xpAt(i) - p.xp)
+                s.body.addView(a.note("$where. Locked: the party needs $need more XP to reach it. Any recipe a member cooks counts.", 13f))
                 if (i > p.reached) s.body.addView(a.note("Cook the spots before it first.", 12f), lp(MATCH, WRAP).m(t = a.dp(4)))
                 s.button("Close", primary = true)
             }
@@ -142,7 +159,24 @@ class MissionScreen(a: MainActivity, val world: Missions.World = Missions.SUNFOR
         }
     }
 
+    /** A spot's story plays once, the first time this phone sees the party there. */
+    private fun tellStories(p: Missions.Progress) {
+        if (!Missions.joined(world)) return
+        val prefs = a.getSharedPreferences("stories", android.content.Context.MODE_PRIVATE)
+        for (i in 0 until Math.min(p.reached, world.spots.size)) {
+            val spot = world.spots[i]
+            val k = world.id + "|" + spot.key
+            if (spot.text.isEmpty() || prefs.getBoolean(k, false)) continue
+            prefs.edit().putBoolean(k, true).apply()
+            val s = Sheet(a, spot.label)
+            s.body.addView(a.note(spot.text, 13.5f))
+            s.button("On we go", primary = true).show()
+            return
+        }
+    }
+
     private fun unlock(p: Missions.Progress) {
+        if (!Missions.joined(world)) return
         val added = Missions.unlock(a, world, p)
         if (added.isNotEmpty()) {
             Sync.nudge(a)

@@ -146,15 +146,29 @@ class SettingsScreen(a: MainActivity) : Screen(a) {
         val hr = a.hbox()
         hr.addView(a.icon("wifi", 30, C.TANG), lp(a.dp(30), a.dp(30)).m(r = a.dp(10)))
         val ht = a.vbox()
-        ht.addView(a.body(if (home.isEmpty()) "No home Wi-Fi yet" else "Home: $home", 15f, C.INK, 800))
-        ht.addView(a.note(if (home.isEmpty()) "The phones only pair and sync on your home Wi-Fi. Save it while you're home."
-            else if (HomeWifi.here(a)) "You're home: the phones sync here." else "Not home right now: nothing is sent.", 11.5f))
+        val locked = HomeWifi.locked(a)
+        ht.addView(a.body(if (!locked) "Home lock off" else if (home.isEmpty()) "No home Wi-Fi yet" else "Home: $home", 15f, C.INK, 800))
+        val why = HomeWifi.why(a)
+        ht.addView(a.note(if (!locked) "The phones sync on any Wi-Fi they share. Sync is encrypted and only your paired phones get in, and no location is needed."
+            else why ?: "You're home: the phones sync here.", 11.5f))
         hr.addView(ht, lp(0, WRAP, 1f))
         hc.addView(hr)
-        val hb = a.chip(if (home.isEmpty()) "Use this Wi-Fi" else "Change to this Wi-Fi", false, C.TANG, null, 13f)
-        hb.contentDescription = "home wifi"
-        hb.onClick { HomeWifi.ask(a) { rebuild() } }
-        hc.addView(hb, lp(WRAP, WRAP).m(t = a.dp(8)))
+        val hbs = a.hbox()
+        val lk = a.chip(if (locked) "Lock on" else "Lock off", locked, C.TANG, "shield", 13f)
+        lk.contentDescription = "home lock"
+        lk.onClick {
+            if (locked) { HomeWifi.setLocked(a, false); Sync.announce(a); rebuild() }
+            else if (home.isEmpty()) HomeWifi.ask(a) { rebuild() }
+            else { HomeWifi.setLocked(a, true); rebuild() }
+        }
+        hbs.addView(lk, lp(WRAP, WRAP).m(r = a.dp(8)))
+        if (locked) {
+            val hb = a.chip(if (home.isEmpty()) "Use this Wi-Fi" else "Change to this Wi-Fi", false, C.TANG, null, 13f)
+            hb.contentDescription = "home wifi"
+            hb.onClick { HomeWifi.ask(a) { rebuild() } }
+            hbs.addView(hb)
+        }
+        hc.addView(hbs, lp(WRAP, WRAP).m(t = a.dp(8)))
         col.addView(hc, lp(MATCH, WRAP))
 
         // recipe files

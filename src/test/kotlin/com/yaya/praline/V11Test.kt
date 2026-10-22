@@ -125,11 +125,11 @@ class V11Test {
 
     @Test fun sharedRecipeChangesNeedTheOtherChef() {
         // phone A (Yaya) writes a recipe; phone B (Sam) gets it on the first sync
-        Store.me.name = "Yaya"; Store.pairKey = "k"
+        Store.me.name = "Yaya"; Store.peers.add(Peer("x").also { it.secret = "c2VjcmV0" })
         val r = LogicTest.sample("Tatin", true, "bard", "S", 3, 75)
         Store.recipes.add(r)
         val yaya = save()
-        Store.reset(); Store.me.name = "Sam"; Store.pairKey = "k"
+        Store.reset(); Store.me.name = "Sam"; Store.peers.add(Peer("x").also { it.secret = "c2VjcmV0" })
         val sam = save()
 
         use(sam); Sync.merge(payloadOf(yaya)); keep(sam)
@@ -170,13 +170,13 @@ class V11Test {
         assertTrue(Sync.news.any { it.contains("Sam kept Tatin as it was") }); Sync.news.clear()
         // Sam drops answers once Yaya's offers are gone
         use(sam); Sync.merge(payloadOf(yaya)); keep(sam)
-        assertEquals(0, Store.answers.size)
+        assertEquals(0, Store.votes.size)
         // and a refused offer is never offered again
         assertEquals(0, Store.inbox.size)
     }
 
     @Test fun specialsStayMineUntilShared() {
-        Store.me.name = "Yaya"; Store.pairKey = "k"
+        Store.me.name = "Yaya"; Store.peers.add(Peer("x").also { it.secret = "c2VjcmV0" })
         val r = LogicTest.sample("Chili", false, "sorcerer", "A", 2, 45)
         Store.recipes.add(r)
         val v = r.variants[0].copy("My Classic"); v.ingredients.add(Ingredient.parse("1 tsp smoked paprika"))
@@ -196,7 +196,7 @@ class V11Test {
         // shared on, it arrives as the other chef's own special
         val yaya = save()
         Share.shareSpecial(null, Store.recipe(r.id)!!, Store.mine[r.id]!![0]); keep(yaya)
-        Store.reset(); Store.me.name = "Sam"; Store.pairKey = "k"; Store.recipes.add(Recipe.fromJson(r.toJson()))
+        Store.reset(); Store.me.name = "Sam"; Store.peers.add(Peer("x").also { it.secret = "c2VjcmV0" }); Store.recipes.add(Recipe.fromJson(r.toJson()))
         Sync.merge(payloadOf(yaya))
         val offer = Store.inbox[0]
         assertEquals("special", offer.kind)
@@ -217,14 +217,14 @@ class V11Test {
 
     @Test fun manualCodeRoundTrip() {
         val key = Sync.newKey()
-        assertEquals(8, key.length)
+        assertEquals(12, key.length)
         val code = Sync.manualCode("192.168.1.20", Sync.PORT, key)
-        assertEquals("20 · " + key.substring(0, 4) + " · " + key.substring(4), code)
+        assertEquals("20 · " + key.substring(0, 4) + " · " + key.substring(4, 8) + " · " + key.substring(8), code)
         val back = Sync.parseManual(code.lowercase(), "192.168.1.57")!!
         assertEquals("192.168.1.20", back.host); assertEquals(Sync.PORT, back.port); assertEquals(key, back.key)
         val other = Sync.parseManual("20:47821 " + key, "10.0.0.3")!!
         assertEquals("10.0.0.20", other.host); assertEquals(47821, other.port)
-        assertEquals("20:47821 · " + key.substring(0, 4) + " · " + key.substring(4), Sync.manualCode("10.0.0.20", 47821, key))
+        assertEquals("20:47821 · " + key.substring(0, 4) + " · " + key.substring(4, 8) + " · " + key.substring(8), Sync.manualCode("10.0.0.20", 47821, key))
         assertNull(Sync.parseManual("20 ABC", "10.0.0.3"))
         assertNull(Sync.parseManual("300 " + key, "10.0.0.3"))
         assertNull(Sync.parseManual("hello", "10.0.0.3"))
@@ -253,7 +253,7 @@ class V11Test {
         r.photo = "agr.jpg"; java.io.FileOutputStream(Store.photoFile(c, "agr.jpg")).use { it.write(byteArrayOf(9, 9, 9)) }
         Store.upsert(c, r)
         Sync.client(c, "127.0.0.1", Sync.port, "K7QPX2MD")
-        assertEquals("K7QPX2MD", Store.pairKey)
+        assertTrue(Store.peers.any { it.key == "K7QPX2MD" })
         // a phone still on 1.0 is told to update
         val s = java.net.Socket("127.0.0.1", Sync.port)
         val out = DataOutputStream(s.getOutputStream()); val inp = DataInputStream(s.getInputStream())
@@ -262,7 +262,7 @@ class V11Test {
         val n = inp.readInt(); val buf = ByteArray(n); inp.readFully(buf)
         assertEquals(Sync.TOO_OLD, JSONObject(String(buf)).getString("error"))
         s.close()
-        Sync.unpair(c)
+        for (p in ArrayList(Store.peers)) Sync.unpair(c, p)
         Sync.stopServer(c)
     }
 

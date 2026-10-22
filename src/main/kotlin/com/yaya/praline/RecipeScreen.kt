@@ -21,7 +21,6 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
     private var topBar: View? = null
     private var heroView: View? = null
     private var shown = false
-    private val chips = ArrayList<Pair<String, LinearLayout>>()
 
     val scale: Double get() = servings.toDouble() / Math.max(1, r.servings)
 
@@ -31,14 +30,13 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
         val col = a.vbox()
         sv.addView(col)
         frame.addView(sv, FrameLayout.LayoutParams(MATCH, MATCH))
-        chips.clear()
         val cls = Classes.get(r.cls)
 
         // hero
         val hero = FrameLayout(a)
         val photo = RoundPhoto(a, 0f)
         photo.placeholderIcon = cls.icon; photo.placeholderColor = cls.color
-        photo.show(r.photo, 1280)
+        photo.showRecipe(r, 1280)
         hero.addView(photo, FrameLayout.LayoutParams(MATCH, MATCH))
         if (r.photo.isEmpty()) {
             val add = a.chip("Add a photo", false, C.MINT, "cam")
@@ -82,7 +80,7 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
         // stat block
         val stat = a.vbox()
         stat.addView(rule())
-        stat.addView(a.body((if (r.dessert) "Dessert" else "Meal") + " · " + cls.name + " · " + cls.blurb, 13f, C.STAT_TEXT, -1), lp(MATCH, WRAP).m(t = a.dp(7)))
+        stat.addView(a.body(Kinds.name(r.kind) + " · " + cls.name + " · " + cls.blurb, 13f, C.STAT_TEXT, -1), lp(MATCH, WRAP).m(t = a.dp(7)))
         val grid = a.hbox(); grid.gravity = Gravity.TOP
         grid.addView(statCell("hour", C.BUTTER, "Time", fmtDuration(r.timeMin)), lp(0, WRAP, 1f))
         grid.addView(statCell("d20", C.RASP, "Effort", "DC ${Fame.dc(r.effort)}", " · ${r.effort}/5"), lp(0, WRAP, 1f))
@@ -112,6 +110,7 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
         }
         val plus = a.chip("", false, C.BUTTER, "plus", 0f)
         plus.onClick { addVariant() }
+        plus.contentDescription = "New variant"
         vrow.addView(plus)
         hs.addView(vrow)
         body.addView(hs, lp(MATCH, WRAP).m(t = a.dp(14)))
@@ -197,7 +196,7 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
         val s = Sheet(a, sv.name)
         val e = Fields.line(a, "Name"); e.setText(sv.name)
         s.body.addView(e, lp(MATCH, WRAP))
-        if (Store.peer != null && Store.pairKey.isNotEmpty()) {
+        if (Store.paired() && Store.party().isNotEmpty()) {
             val sh = a.chip("Share with ${Share.peerName()}", false, C.MINT, "heart", 13f)
             sh.onClick { s.dismiss(); Share.shareSpecial(a, r, sv); a.toast("Sent to ${Share.peerName()}"); Sync.nudge(a) }
             s.body.addView(sh, lp(WRAP, WRAP).m(t = a.dp(10)))
@@ -235,17 +234,21 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
         box.addView(tick, flp(a.dp(22), a.dp(22)).m(l = a.dp(3), t = -a.dp(5)))
         row.addView(box, lp(a.dp(24), a.dp(24)).m(r = a.dp(10)))
         val q = a.body(ing.amount(scale), 15f, C.INK, 800)
-        q.minWidth = a.dp(56)
+        val n = a.body(ing.name, 15f)
         if (ing.qty == null) {
-            // no amount: a little sprig "to taste" instead of a blank
-            val t = a.hbox(); t.minimumWidth = a.dp(56)
-            t.addView(a.icon("sprig", 16, C.PIST, C.INK, 7f), lp(a.dp(16), a.dp(16)).m(r = a.dp(3)))
+            // no amount: the name, and under it a little sprig "to taste"
+            val col = a.vbox()
+            col.addView(n)
+            val t = a.hbox(); t.gravity = Gravity.CENTER_VERTICAL
+            t.addView(a.icon("sprig", 14, C.PIST, C.INK, 7f), lp(a.dp(14), a.dp(14)).m(r = a.dp(3)))
             t.addView(a.note("to taste", 10.5f))
             t.contentDescription = "to taste"
-            row.addView(t, lp(WRAP, WRAP).m(r = a.dp(8)))
-        } else row.addView(q, lp(WRAP, WRAP).m(r = a.dp(8)))
-        val n = a.body(ing.name, 15f)
-        row.addView(n, lp(0, WRAP, 1f))
+            col.addView(t, lp(WRAP, WRAP).m(t = a.dp(1)))
+            row.addView(col, lp(0, WRAP, 1f))
+        } else {
+            row.addView(q, lp(WRAP, WRAP).m(r = a.dp(7)))
+            row.addView(n, lp(0, WRAP, 1f))
+        }
         amounts.add(Pair(ing, q))
         fun paint() {
             val on = checked.contains(i)
@@ -277,14 +280,7 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
         val t = a.body(StepText.styled(s.text, v.ingredients, scale), 14.5f).also { it.setLineSpacing(0f, 1.15f) }
         stepTexts.add(Pair(s, t))
         col.addView(t)
-        if (s.timerSec > 0) {
-            val id = Timers.idFor(r.id, variant, i)
-            val chip = a.timerChip(fmtClock(s.timerSec.toLong()) + (if (s.rounds > 1) " ×${s.rounds}" else "") + (if (s.timerLabel.isNotEmpty()) " · " + s.timerLabel else ""))
-            // timers belong to the quest: the chip opens it at this step
-            chip.onClick { startQuest(i) }
-            chips.add(Pair(id, chip))
-            col.addView(chip, lp(WRAP, WRAP).m(t = a.dp(7)))
-        }
+        // timers belong to the quest (1.4): no timer chips on the recipe page
         row.addView(col, lp(0, WRAP, 1f))
         if (s.video.isNotEmpty()) {
             val p = Clips.thumb(a, s.video, 62)
@@ -301,16 +297,6 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
     }
 
     fun timerLabel(s: Step): String = if (s.timerLabel.isNotEmpty()) s.timerLabel + " · " + r.title else r.title
-
-    override fun tick() {
-        for ((id, chip) in chips) {
-            val st = Timers.state(a, id)
-            val t = chip.tag as TextView
-            if (st == Timers.IDLE) continue
-            val rem = Timers.remainingMs(a, id) / 1000
-            t.text = when (st) { Timers.RUNNING -> fmtClock(rem) + " · in the quest"; Timers.PAUSED -> fmtClock(rem) + " · paused"; else -> "Time's up!" }
-        }
-    }
 
     private fun typeServings() {
         val s = Sheet(a, "How many servings?")
@@ -332,7 +318,8 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
 
     private fun addVariant() {
         val s = Sheet(a, "New variant")
-        val from = if (variant >= Share.SPECIAL) 0 else variant
+        // a new variant always starts from the main recipe (1.4)
+        val from = 0
         s.body.addView(a.note("It starts as a copy of “${r.variant(from).name}”, with its own ingredients and steps.", 12.5f))
         val e = Fields.line(a, "Spicier, Curry, Vegan…")
         s.body.addView(e, lp(MATCH, WRAP).m(t = a.dp(10)))
@@ -357,11 +344,11 @@ class RecipeScreen(a: MainActivity, var r: Recipe) : Screen(a) {
 
     private fun changePhoto() {
         a.pickPhoto("Recipe photo") { f ->
-            if (f != null) a.push(PhotoScreen(a, f, r.filter.ifEmpty { "torch" }, r.strength) { orig, filtered, key, str ->
-                r.photoOrig = orig; r.photo = filtered; r.filter = key; r.strength = str
+            if (f != null) a.push(PhotoScreen(a, f, r.filter.ifEmpty { "torch" }, r.strength, { orig, filtered, key, str, fr ->
+                r.photoOrig = orig; r.photo = filtered; r.filter = key; r.strength = str; fr.applyTo(r)
                 Store.upsert(a, r)
                 if (Share.isShared(r)) { Share.proposeMain(a, r); a.toast("New photo sent to ${Share.peerName()} to accept"); Sync.nudge(a) }
-            })
+            }))
         }
     }
 

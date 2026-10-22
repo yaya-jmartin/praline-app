@@ -66,10 +66,10 @@ class V13Test {
         val za = SecureLink.agree(a, SecureLink.publicBytes(b)); val zb = SecureLink.agree(b, SecureLink.publicBytes(a))
         assertArrayEquals(za, zb)
         val tr = SecureLink.transcript(SecureLink.publicBytes(a), SecureLink.publicBytes(b), SecureLink.random(32), SecureLink.random(32))
-        val ka = SecureLink.Keys(SecureLink.codeSecret("K7QPX2MD"), za, tr)
-        val kb = SecureLink.Keys(SecureLink.codeSecret("K7QPX2MD"), zb, tr)
+        val ka = SecureLink.Keys(SecureLink.codeSecret("K7QPX2MD9FHT"), za, tr)
+        val kb = SecureLink.Keys(SecureLink.codeSecret("K7QPX2MD9FHT"), zb, tr)
         assertArrayEquals(ka.clientProof, kb.clientProof); assertArrayEquals(ka.toServer, kb.toServer); assertArrayEquals(ka.pairing, kb.pairing)
-        val wrong = SecureLink.Keys(SecureLink.codeSecret("K7QPX2ME"), zb, tr)
+        val wrong = SecureLink.Keys(SecureLink.codeSecret("K7QPX2MD9FHU"), zb, tr)
         assertFalse(SecureLink.same(ka.clientProof, wrong.clientProof))
         assertFalse(SecureLink.same(ka.toServer, ka.toClient))
     }
@@ -111,76 +111,67 @@ class V13Test {
         fun text(): String = synchronized(heard) { String(heard.toByteArray(), Charsets.ISO_8859_1) }
     }
 
+    private val CODE = "K7QPX2MD9FHT"
+
     @Test fun pairingThenSyncNeverSendsTheCodeOrTheCookbookInTheClear() {
         server()
         val ear = Listener(Sync.port)
-        Sync.pendingKey = "K7QPX2MD"
+        Sync.pendingKey = CODE
         Store.me.name = "Yaya"
         val r = LogicTest.sample("Secret Soufflé", true, "bard", "S", 3, 40)
         Store.upsert(c, r)
-        Sync.client(c, "127.0.0.1", ear.port, "K7QPX2MD")
-        assertEquals("K7QPX2MD", Store.pairKey)
+        Sync.client(c, "127.0.0.1", ear.port, CODE)
+        // one process plays both phones: each side keeps a peer with the same long secret
         assertEquals("", Sync.pendingKey)
-        assertTrue(Store.pairSecret.isNotEmpty())
-        assertFalse(Store.secretConfirmed)
+        val mine = Store.peers.first { it.key == CODE }
+        assertTrue(mine.secret.isNotEmpty())
+        assertTrue(Store.peers.all { it.secret == mine.secret })
         // the next sync proves the long secret, and from then on the short code is no longer accepted
-        Sync.client(c, "127.0.0.1", ear.port, "K7QPX2MD")
-        assertTrue(Store.secretConfirmed)
+        Sync.client(c, "127.0.0.1", ear.port, CODE)
+        assertTrue(mine.confirmed)
         Thread.sleep(200)
         val heard = ear.text()
         assertTrue(heard.length > 1000)
-        assertEquals(-1, heard.indexOf("K7QPX2MD"))
+        assertEquals(-1, heard.indexOf(CODE))
         assertEquals(-1, heard.indexOf("Secret Souffl"))
         assertEquals(-1, heard.indexOf("Yaya"))
         assertFalse(Sync.payload(null, false).has("key"))
-        // a phone that only knows the short code is refused now
-        val secret = Store.pairSecret
-        Store.pairSecret = ""
+        // a phone that only knows the code is refused now
         var err = ""
-        try { Sync.client(c, "127.0.0.1", Sync.port, "K7QPX2MD") } catch (e: Exception) { err = e.message ?: "" }
+        try { Sync.clientCode(c, "127.0.0.1", Sync.port, CODE) } catch (e: Exception) { err = e.message ?: "" }
         assertEquals(Sync.NOT_PAIRED, err)
-        Store.pairSecret = secret
         // the secret survives a restart
+        val secret = mine.secret
         Store.save(c); Store.reset(); Store.load(c)
-        assertEquals(secret, Store.pairSecret); assertTrue(Store.secretConfirmed)
-        Sync.unpair(c)
-        assertEquals("", Store.pairSecret)
-    }
-
-    @Test fun phonesPairedOn12MoveOverWithTheirCode() {
-        server()
-        // two 1.2 phones: a pair code, no long secret yet
-        Store.pairKey = "OLDKEY12"
-        Sync.client(c, "127.0.0.1", Sync.port, "OLDKEY12")
-        assertTrue(Store.pairSecret.isNotEmpty())
-        Sync.client(c, "127.0.0.1", Sync.port, "OLDKEY12")
-        assertTrue(Store.secretConfirmed)
+        assertTrue(Store.peers.any { it.secret == secret && it.confirmed })
+        for (p in ArrayList(Store.peers)) Sync.unpair(c, p)
+        assertTrue(Store.peers.isEmpty())
     }
 
     @Test fun fiveWrongCodesLockPairingForTenMinutes() {
         server()
-        Sync.pendingKey = "K7QPX2MD"
+        Sync.pendingKey = CODE
         for (i in 0 until 5) {
             var err = ""
-            try { Sync.client(c, "127.0.0.1", Sync.port, "WRONG00$i") } catch (e: Exception) { err = e.message ?: "" }
+            try { Sync.client(c, "127.0.0.1", Sync.port, "WRONGCODE00$i") } catch (e: Exception) { err = e.message ?: "" }
             assertEquals(Sync.NOT_PAIRED, err)
         }
         var err = ""
         // even the right code waits now
-        try { Sync.client(c, "127.0.0.1", Sync.port, "K7QPX2MD") } catch (e: Exception) { err = e.message ?: "" }
+        try { Sync.client(c, "127.0.0.1", Sync.port, CODE) } catch (e: Exception) { err = e.message ?: "" }
         assertEquals(Sync.TOO_MANY, err)
         assertTrue(Sync.lockedOut())
         assertFalse(Sync.lockedOut(System.currentTimeMillis() + 11 * 60_000L))
         Sync.clearFailures()
-        Sync.client(c, "127.0.0.1", Sync.port, "K7QPX2MD")
-        assertEquals("K7QPX2MD", Store.pairKey)
+        Sync.client(c, "127.0.0.1", Sync.port, CODE)
+        assertTrue(Store.peers.any { it.key == CODE })
     }
 
     @Test fun anOldPhoneIsToldToUpdate() {
         server()
         val s = Socket("127.0.0.1", Sync.port)
         val out = java.io.DataOutputStream(s.getOutputStream()); val inp = java.io.DataInputStream(s.getInputStream())
-        val hello = JSONObject().put("v", 2).put("key", "K7QPX2MD").toString().toByteArray()
+        val hello = JSONObject().put("v", 2).put("key", "K7QPX2MD9FHT").toString().toByteArray()
         out.writeInt(hello.size); out.write(hello); out.flush()
         val n = inp.readInt(); val buf = ByteArray(n); inp.readFully(buf)
         assertEquals(Sync.TOO_OLD, JSONObject(String(buf)).getString("error"))

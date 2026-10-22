@@ -201,7 +201,9 @@ class ShieldView(c: Context, var tier: String, var color: Int) : View(c) {
     private val pInk = Ink.inkPaint(c, 6f)
     private val pFill = Ink.fillPaint(color)
     private val pText = Paint(Paint.ANTI_ALIAS_FLAG)
-    init { pText.typeface = F.black(c); pText.textAlign = Paint.Align.CENTER; pText.color = C.INK; pText.textSkewX = -0.2f }
+    private val box = RectF().also { shape.computeBounds(it, true) }
+    private val glyph = android.graphics.Rect()
+    init { pText.typeface = F.black(c); pText.textAlign = Paint.Align.LEFT; pText.color = C.INK; pText.textSkewX = -0.2f }
     override fun onDraw(canvas: Canvas) {
         val s = Math.min(width, height) / 112f
         canvas.save()
@@ -212,8 +214,11 @@ class ShieldView(c: Context, var tier: String, var color: Int) : View(c) {
         pFill.color = color
         canvas.drawPath(shape, pFill)
         canvas.drawPath(shape, pInk)
+        // the letter's own ink centred on the shield, a touch above the middle where the shield is widest
         pText.textSize = 46f
-        canvas.drawText(tier, 50f, 64f, pText)
+        pText.getTextBounds(tier, 0, tier.length, glyph)
+        val cx = box.centerX(); val cy = box.top + box.height() * 0.46f
+        canvas.drawText(tier, cx - glyph.exactCenterX(), cy - glyph.exactCenterY(), pText)
         canvas.restore()
     }
 }

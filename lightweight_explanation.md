@@ -33,6 +33,22 @@ One constraint shapes most of the choices below. The computer Claude builds on c
 | **Painted map slices** | The world map cut into six pictures stacked top to bottom | Shows The Sunforge Sands; only the pieces near the screen are kept in memory | One giant picture would use too much memory on smaller phones |
 | **Live drawing on the map** | The phone draws on top of the pictures, many times a second | Sun rays, the Calice's beam, forge sparks, the lit trail, the dusk ahead, the spots and the two chefs | Moves and changes with your progress without needing a new picture for every state |
 
+## New in 1.4: the map scene (no new libraries)
+
+| Building block | What it is | What it does for Praliné | Why this one |
+|---|---|---|---|
+| **The map scene** | One shared piece of drawing code for every painted, moving picture in the app, like a small game engine but only the parts Praliné needs | Shows the painted map, its moving decorations and light effects, keeps only the pieces near the screen in memory, and stops drawing when you leave | Written once and reused for every world (and housing later), instead of copying the drawing code per screen. A real game engine (LibGDX, Korge) would add megabytes and a separate drawing surface that doesn't mix with the hand-inked screens |
+| **World files** (`.praline-world`, a zip file) | A whole world packed in one file: the painted map, the trail, the spots with their stories and recipes, the decorations | The map editor on your PC makes them; Praliné opens one from Files or a chat app and adds the world. The Sunforge Sands now ships as one too | Same idea as recipe files: one parcel, any app can carry it, no server. The editor and the app share one written format, so what you build is what plays |
+
+## New in 1.4: reading cookbooks, bigger parties
+
+| Building block | What it is | What it does for Praliné | Why this one |
+|---|---|---|---|
+| **Google ML Kit text recognition** (version 16.0.1) | Google's text reader that runs on the phone | Reads a photo of a cookbook page and fills in a new recipe for you to check | Works offline and keeps your photos on the phone; the reading model is inside the app (about 4 MB). Cloud readers would send your photos away; the free Tesseract reader is bigger and less accurate on phone photos. It comes from Google's servers, so only the GitHub build has it |
+| **Signing on GitHub** | GitHub signs the finished app with your "praline" key, kept in the repository's locked secrets | 1.4 is the first APK built and signed by GitHub, so it can include the text reader | Secrets can't be read back by anyone, and the key file is deleted after each build. Publishing still waits for your OK |
+| **Slow code checking** (PBKDF2, built into Java) | Makes checking a pairing code deliberately slow | Guessing the typed pairing code becomes impractical | Built into every phone, the standard way to protect short codes |
+| **A chime made on the phone** (Android's AudioTrack) | The phone plays sound it computes itself | The level-up sparkle sound | No sound file to ship or license |
+
 ## The tools that build the app (not inside it)
 
 Same chain as Pistachio:
@@ -64,7 +80,6 @@ Same chain as Pistachio:
 
 | Building block | What it will do | Why |
 |---|---|---|
-| **GitHub Actions** | Builds the app on GitHub's computers, which can reach Google's servers | Unlocks everything below, plus automatic builds. Publishing always waits for your OK |
 | **Coil** (image library) | Loads, shrinks and caches photos automatically, and cancels loading for screens you've left | Kotlin-first, light, the current standard for Android. Glide is the older, also-proven alternative |
 | **CameraX** | Modern camera access: sharper focus, works the same on all phones | Fixes the root cause of blurry QR scans, and is Google's recommended camera library |
 | **Jetpack DataStore** | Safer storage for settings | Google's recommended replacement for SharedPreferences |

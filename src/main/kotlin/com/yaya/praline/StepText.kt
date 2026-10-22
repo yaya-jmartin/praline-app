@@ -251,3 +251,29 @@ class AmountTokenizer : MultiAutoCompleteTextView.Tokenizer {
     }
     override fun terminateToken(text: CharSequence): CharSequence = text
 }
+
+/** Splits a pasted method into steps (1.4). */
+object StepImport {
+    private val NUMBER = Regex("""^\s*(?:step\s*)?(\d{1,2})\s*[.):\-–]\s*""", RegexOption.IGNORE_CASE)
+    private val BULLET = Regex("""^\s*[-•*·]\s+""")
+
+    fun split(text: String): List<String> {
+        val lines = text.replace("\r", "").split("\n")
+        val out = ArrayList<String>()
+        if (lines.count { NUMBER.containsMatchIn(it) } >= 2) {
+            // numbered: each number starts a step, lines under it carry on the same step
+            var cur = StringBuilder()
+            for (l in lines) {
+                val m = NUMBER.find(l)
+                if (m != null) { if (cur.isNotBlank()) out.add(cur.toString().trim()); cur = StringBuilder(l.substring(m.range.last + 1).trim()) }
+                else if (l.isNotBlank()) { if (cur.isNotEmpty()) cur.append(' '); cur.append(l.trim()) }
+            }
+            if (cur.isNotBlank()) out.add(cur.toString().trim())
+            return out
+        }
+        val paras = text.replace("\r", "").split(Regex("""\n\s*\n""")).map { it.trim() }.filter { it.isNotEmpty() }
+        if (paras.size >= 2) return paras.map { p -> p.split("\n").joinToString(" ") { BULLET.replace(it.trim(), "") } }
+        for (l in lines) { val t = BULLET.replace(l.trim(), "").trim(); if (t.isNotEmpty()) out.add(t) }
+        return out
+    }
+}

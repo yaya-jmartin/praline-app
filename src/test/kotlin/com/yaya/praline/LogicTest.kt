@@ -178,11 +178,11 @@ class LogicTest {
         assertTrue(refused)
         // the scanned key pairs and then keeps working
         Sync.client(c, "127.0.0.1", Sync.port, "secret-from-qr")
-        assertEquals("secret-from-qr", Store.pairKey)
+        assertTrue(Store.peers.any { it.key == "secret-from-qr" && it.secret.isNotEmpty() })
         Sync.client(c, "127.0.0.1", Sync.port, "secret-from-qr")
         assertEquals(1, Store.recipes.size)
-        Sync.unpair(c)
-        assertEquals("", Store.pairKey)
+        for (p in ArrayList(Store.peers)) Sync.unpair(c, p)
+        assertTrue(Store.peers.isEmpty())
         Sync.stopServer(c)
     }
 

@@ -14,6 +14,8 @@ class PairScreen(a: MainActivity) : Screen(a) {
     private var busy = false
     private var scanner: QrScanner? = null
     private var error = ""
+    /** Paired phones when the page opened: one more means the code was used. */
+    private val before = Store.peers.size
 
     override fun build(): View {
         scanner = null
@@ -24,12 +26,16 @@ class PairScreen(a: MainActivity) : Screen(a) {
         val top = a.hbox()
         val back = a.roundIcon("back", 38, C.CARD, 16); back.onClick { if (mode == 1 || mode == 2 || mode == 4) { mode = 0; error = ""; rebuild() } else a.pop() }
         top.addView(back, lp(a.dp(38), a.dp(38)).m(r = a.dp(12)))
-        top.addView(a.label("Party of two"))
+        top.addView(a.label("Party of up to four"))
         col.addView(top)
         col.addView(a.script("Invite a chef", 48f), lp(MATCH, WRAP).m(l = -a.dp(4)))
 
-        // pairing only happens on the home Wi-Fi
+        // with the home lock on, pairing only happens on the home Wi-Fi
         if (mode != 3 && !HomeWifi.here(a)) { homeFirst(col); return sv }
+        if (mode != 3 && Store.peers.size >= Store.PARTY_MAX - 1) {
+            col.addView(a.note("Your party already has four chefs. Unpair a phone on your chef's page first.", 13f, C.RASP), lp(MATCH, WRAP).m(t = a.dp(8)))
+            return sv
+        }
         when (mode) {
             0 -> choose(col)
             1 -> showCode(col)
@@ -45,17 +51,21 @@ class PairScreen(a: MainActivity) : Screen(a) {
         val home = HomeWifi.saved(a)
         val card = a.card(C.TANG, 14, 14)
         card.addView(a.script("Home dungeon access", 30f))
-        card.addView(a.note(if (home.isEmpty()) "Praliné pairs and syncs only on your home Wi-Fi. Are you home? Save this Wi-Fi as home first."
-            else "You're not on your home Wi-Fi (“$home”), so the phones won't pair or sync here.", 12.5f), lp(MATCH, WRAP).m(t = a.dp(2)))
+        card.addView(a.note(HomeWifi.why(a) ?: (if (home.isEmpty()) "Praliné pairs and syncs only on your home Wi-Fi. Are you home? Save this Wi-Fi as home first."
+            else "You're not on your home Wi-Fi (“$home”), so the phones won't pair or sync here."), 12.5f), lp(MATCH, WRAP).m(t = a.dp(2)))
         val b = a.chip(if (home.isEmpty()) "Use this Wi-Fi as home" else "Make this Wi-Fi home instead", true, C.TANG, "wifi", 13f)
         b.contentDescription = "set home wifi"
         b.onClick { HomeWifi.ask(a) { rebuild() } }
         card.addView(b, lp(WRAP, WRAP).m(t = a.dp(10)))
+        val off = a.chip("Turn the home lock off", false, C.BUTTER, "shield", 13f)
+        off.contentDescription = "home lock off"
+        off.onClick { HomeWifi.setLocked(a, false); Sync.announce(a); rebuild() }
+        card.addView(off, lp(WRAP, WRAP).m(t = a.dp(8)))
         col.addView(card, lp(MATCH, WRAP).m(t = a.dp(6)))
     }
 
     private fun choose(col: android.widget.LinearLayout) {
-        col.addView(a.note("Both phones need Praliné open and the same home Wi-Fi. Pair once; after that they sync on their own whenever both are open. Each phone keeps its own chef, and you share one cookbook.", 13f), lp(MATCH, WRAP).m(b = a.dp(16)))
+        col.addView(a.note("Both phones need Praliné open and the same Wi-Fi. Pair once with any phone of your party; after that they sync on their own whenever both are open. Each phone keeps its own chef, and up to four chefs share one cookbook.", 13f), lp(MATCH, WRAP).m(b = a.dp(16)))
         val show = a.card(C.LILAC, 14, 14)
         val r1 = a.hbox()
         r1.addView(a.icon("qr", 44, C.LILAC), lp(a.dp(44), a.dp(44)).m(r = a.dp(12)))
@@ -100,16 +110,16 @@ class PairScreen(a: MainActivity) : Screen(a) {
         val size = Math.min(a.resources.displayMetrics.widthPixels - a.dp(110), a.dp(300))
         img.setImageBitmap(Sync.qrBitmap(Sync.pairCode(), size))
         card.addView(img, lp(size, size))
-        card.addView(a.note("On the other phone: chef profile → Invite a second chef → Scan their code", 12f).also { it.gravity = Gravity.CENTER }, lp(MATCH, WRAP).m(t = a.dp(10)))
+        card.addView(a.note("On the other phone: chef profile → Invite a chef → Scan their code", 12f).also { it.gravity = Gravity.CENTER }, lp(MATCH, WRAP).m(t = a.dp(10)))
         col.addView(card, lp(MATCH, WRAP))
         // the same thing to type, for a camera that can't scan
         val mc = a.card(C.BUTTER, 14, 12); mc.gravity = Gravity.CENTER_HORIZONTAL
         mc.addView(a.label("Or type this code"))
-        val code = a.body(Sync.manualCode(ip, Sync.port, Sync.pendingKey), 28f, C.INK, 800)
+        val code = a.body(Sync.manualCode(ip, Sync.port, Sync.pendingShort), 24f, C.INK, 800)
         code.letterSpacing = 0.06f; code.gravity = Gravity.CENTER; code.setTextIsSelectable(true)
         code.contentDescription = "manual code"
         mc.addView(code, lp(MATCH, WRAP).m(t = a.dp(4)))
-        mc.addView(a.note("Other phone: Invite a second chef → Type their code", 11.5f).also { it.gravity = Gravity.CENTER })
+        mc.addView(a.note("Other phone: Invite a chef → Type their code", 11.5f).also { it.gravity = Gravity.CENTER })
         col.addView(mc, lp(MATCH, WRAP).m(t = a.dp(14)))
         col.addView(a.note("Waiting for the other phone… ($ip)", 11.5f).also { it.gravity = Gravity.CENTER }, lp(MATCH, WRAP).m(t = a.dp(12)))
     }
@@ -134,8 +144,8 @@ class PairScreen(a: MainActivity) : Screen(a) {
 
     /** Typing the code shown under the other phone's QR (for a camera that won't scan). */
     private fun typeCode(col: android.widget.LinearLayout) {
-        col.addView(a.note("On the other phone, open Show my code. Type the code under the QR, like “20 · K7QP · X2MD”. Spaces and dots don't matter.", 13f), lp(MATCH, WRAP).m(b = a.dp(12)))
-        val e = Fields.line(a, "20 · K7QP · X2MD", 24f)
+        col.addView(a.note("On the other phone, open Show my code. Type the code under the QR, like “20 · K7QP · X2MD · 9FHT”. Spaces and dots don't matter.", 13f), lp(MATCH, WRAP).m(b = a.dp(12)))
+        val e = Fields.line(a, "20 · K7QP · X2MD · 9FHT", 22f)
         e.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         e.typeface = F.black(a); e.gravity = Gravity.CENTER
         e.contentDescription = "code field"
@@ -147,7 +157,7 @@ class PairScreen(a: MainActivity) : Screen(a) {
             val ip = Sync.localIp()
             if (ip.isEmpty()) { error = "This phone isn't on a Wi-Fi network."; rebuild(); return@onClick }
             val code = Sync.parseManual(e.text.toString(), ip)
-            if (code == null) { error = "That code doesn't look right. It's a number, then 8 letters and digits."; rebuild(); return@onClick }
+            if (code == null) { error = "That code doesn't look right. It's a number, then 12 letters and digits."; rebuild(); return@onClick }
             a.hideKeyboard()
             join(code)
         }
@@ -161,7 +171,9 @@ class PairScreen(a: MainActivity) : Screen(a) {
         Sync.syncWith(a, code.host, code.port, code.key) { err ->
             busy = false
             if (err == null) mode = 3
-            else error = if (err == Sync.TOO_OLD || err == Sync.TOO_MANY || err == Sync.NOT_YOURS) err else if (err == Sync.NOT_PAIRED) "That code didn't match. Check the code on the other phone and try again." else "Couldn't reach the other phone. Are both on the same Wi-Fi with Praliné open on Show my code?"
+            else error = if (err == Sync.NOT_PAIRED) "That code didn't match. Check the code on the other phone and try again."
+                else if (err == Sync.NO_ANSWER) "Couldn't reach the other phone. Are both on the same Wi-Fi with Praliné open on Show my code?"
+                else err
             rebuild()
         }
     }
@@ -175,7 +187,8 @@ class PairScreen(a: MainActivity) : Screen(a) {
     }
 
     private fun paired(col: android.widget.LinearLayout) {
-        val peer = Store.peer
+        val newest = Store.peers.lastOrNull()
+        val peer = if (newest != null) Store.chefs[newest.chefId] else null
         val card = a.card(C.MINT, 16, 16); card.gravity = Gravity.CENTER_HORIZONTAL
         if (peer != null) card.addView(Medallion(a, peer.portrait, C.MINT), lp(a.dp(90), a.dp(90)))
         card.addView(a.script((peer?.name ?: "A chef") + " joined the party", 32f).also { it.gravity = Gravity.CENTER }, lp(MATCH, WRAP).m(t = a.dp(6)))
@@ -188,7 +201,7 @@ class PairScreen(a: MainActivity) : Screen(a) {
 
     /** The phone showing its code learns it was scanned when the other phone syncs in. */
     override fun onSynced() {
-        if (mode == 1 && Store.pairKey.isNotEmpty() && Store.peer != null) { mode = 3; rebuild() }
+        if (mode == 1 && Store.peers.size > before) { mode = 3; rebuild() }
     }
 
     override fun onHide() { scanner?.close() }
